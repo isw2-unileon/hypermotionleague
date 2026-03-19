@@ -22,10 +22,15 @@ type DBConfig struct {
 	Password string
 	Name     string
 	SSLMode  string
+	DSN      string // Full connection string override (DATABASE_URL)
 }
 
-// DSN returns the PostgreSQL connection string.
-func (c DBConfig) DSN() string {
+// ConnString returns the PostgreSQL connection string.
+// If DATABASE_URL is set, it takes precedence over individual fields.
+func (c DBConfig) ConnString() string {
+	if c.DSN != "" {
+		return c.DSN
+	}
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode,
@@ -39,12 +44,13 @@ func Load() *Config {
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
 		DB: DBConfig{
+			DSN:      os.Getenv("DATABASE_URL"),
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", "postgres"),
 			Name:     getEnv("DB_NAME", "hypermotionleague"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			SSLMode:  getEnv("DB_SSLMODE", "require"),
 		},
 	}
 }
