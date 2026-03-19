@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/config"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/db"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -20,6 +22,18 @@ func main() {
 	ctx := context.Background()
 
 	cfg := config.Load()
+
+	// Initialize database connection
+	pool, err := db.NewPool(ctx, cfg.DB)
+	if err != nil {
+		logger.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	// Initialize repositories
+	repos := postgres.NewRepositories(pool.Pool)
+	_ = repos // Will be used by services/handlers
 
 	gin.SetMode(cfg.GinMode)
 
