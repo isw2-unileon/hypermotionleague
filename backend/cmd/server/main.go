@@ -48,6 +48,25 @@ func main() {
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
+	// GET /api/db-test checks if the database connection is alive
+	api.GET("/db-test", func(c *gin.Context) {
+		// We use pool.Pool because your code passes pool.Pool to the repositories
+		err := pool.Pool.Ping(c.Request.Context())
+		if err != nil {
+			logger.Error("database ping failed", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  "error",
+				"message": "Database is unreachable",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "success",
+			"message": "Connected to the Hypermotion League DB successfully!",
+		})
+	})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
