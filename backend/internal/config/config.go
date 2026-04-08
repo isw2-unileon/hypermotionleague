@@ -11,6 +11,7 @@ type Config struct {
 	Port            string
 	GinMode         string
 	CORSAllowOrigin string
+	JWTSecret       string
 	DB              DBConfig
 }
 
@@ -43,6 +44,8 @@ func Load() *Config {
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
+		JWTSecret:       getEnv("JWT_SECRET", ""),
+
 		DB: DBConfig{
 			DSN:      os.Getenv("DATABASE_URL"),
 			Host:     getEnv("DB_HOST", "localhost"),
