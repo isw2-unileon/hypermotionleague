@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/config"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/db"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/handlers"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/middleware"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
@@ -33,13 +35,16 @@ func main() {
 
 	// Initialize repositories
 	repos := postgres.NewRepositories(pool.Pool)
-	_ = repos // Will be used by services/handlers
+
+	// Initialize handlers
+	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
 
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
+	// public routes, no auth required
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -49,24 +54,28 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
 	// GET /api/db-test checks if the database connection is alive
+
 	api.GET("/db-test", func(c *gin.Context) {
-		// We use pool.Pool because your code passes pool.Pool to the repositories
-		err := pool.Pool.Ping(c.Request.Context())
-		if err != nil {
+		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  "error",
-				"message": "Database is unreachable",
-				"error":   err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 			return
 		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "success",
-			"message": "Connected to the Hypermotion League DB successfully!",
-		})
+		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "DB conectada"})
 	})
+
+	// Auth — public routes (register and login do not require token)
+	v1 := api.Group("/v1")
+	v1.POST("/auth/register", authHandler.Register)
+	v1.POST("/auth/login", authHandler.Login)
+
+	// Protected routes — from here on, all require a valid JWT
+	protected := v1.Group("")
+	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
+	{
+		// Meter endpoints cada
+		// Ejemplo de un endpoint : protected.GET("/users/:user_id/leagues", leagueHandler.GetUserLeagues)
+	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

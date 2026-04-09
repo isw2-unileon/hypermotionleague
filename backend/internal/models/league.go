@@ -52,3 +52,15 @@ type CreateLeagueRequest struct {
 type JoinLeagueRequest struct {
 	InviteCode string `json:"invite_code" binding:"required"`
 }
+
+// LoginRequest is the payload for logging in.
+type LoginRequest struct {
+	Email    string `json:"email"    binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+// AuthResponse is the response returned after a successful login.
+type AuthResponse struct {
+	Token string `json:"token"`
+	User  User   `json:"user"`
+}
