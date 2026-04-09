@@ -38,7 +38,7 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
-
+	leagueHandler := handlers.NewLeagueHandler(repos.League)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -75,6 +75,8 @@ func main() {
 	{
 		// Meter endpoints cada
 		// Ejemplo de un endpoint : protected.GET("/users/:user_id/leagues", leagueHandler.GetUserLeagues)
+		protected.GET("/leagues", leagueHandler.GetByUserID)
+		protected.POST("/leagues", leagueHandler.Create)
 	}
 
 	srv := &http.Server{
