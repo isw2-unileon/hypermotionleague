@@ -38,7 +38,7 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
-
+	leagueHandler := handlers.NewLeagueHandler(repos.League)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -53,6 +53,8 @@ func main() {
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
+	// GET /api/db-test checks if the database connection is alive
+
 	api.GET("/db-test", func(c *gin.Context) {
 		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
@@ -73,6 +75,8 @@ func main() {
 	{
 		// Meter endpoints cada
 		// Ejemplo de un endpoint : protected.GET("/users/:user_id/leagues", leagueHandler.GetUserLeagues)
+		protected.GET("/leagues", leagueHandler.GetByUserID)
+		protected.POST("/leagues", leagueHandler.Create)
 	}
 
 	srv := &http.Server{
