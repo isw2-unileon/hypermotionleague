@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -39,7 +41,10 @@ func (c DBConfig) ConnString() string {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
+// It automatically loads .env if present.
 func Load() *Config {
+	_ = godotenv.Load() // silent fail if .env not found (e.g. in production)
+
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
