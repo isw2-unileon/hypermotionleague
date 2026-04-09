@@ -11,6 +11,7 @@ type User struct {
 	PasswordHash string    `json:"-"` // Never expose in JSON
 	DisplayName  string    `json:"display_name"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
+	AuthProvider string    `json:"auth_provider"` // "email", "google", "apple"
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

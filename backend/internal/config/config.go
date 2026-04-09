@@ -14,6 +14,8 @@ type Config struct {
 	GinMode         string
 	CORSAllowOrigin string
 	JWTSecret       string
+	SupabaseURL     string
+	SupabaseKey     string
 	DB              DBConfig
 }
 
@@ -50,6 +52,8 @@ func Load() *Config {
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
 		JWTSecret:       getEnv("JWT_SECRET", ""),
+		SupabaseURL:     getEnv("SUPABASE_URL", ""),
+		SupabaseKey:     getEnv("SUPABASE_SERVICE_KEY", ""),
 
 		DB: DBConfig{
 			DSN:      os.Getenv("DATABASE_URL"),
