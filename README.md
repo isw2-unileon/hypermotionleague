@@ -8,15 +8,15 @@ A fantasy football web application for **La Liga Hypermotion** (Spanish Segunda 
 
 ### Login Screen
 
-[Login Screen](docs/screenshots/login.png)
+![Login Screen](docs/screenshots/login.png)
 
 ### Register Screen
 
-[Register Screen](docs/screenshots/register.png)
+![Register Screen](docs/screenshots/register.png)
 
 ### My Leagues
 
-[My Leagues](docs/screenshots/myleagues.png)
+![My Leagues](docs/screenshots/myleagues.png)
 
 More screens will be added soon!
 
