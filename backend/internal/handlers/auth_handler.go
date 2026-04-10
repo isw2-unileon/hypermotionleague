@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -31,6 +32,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// verify if email already exists
 	existing, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
+		slog.Error("register: failed to check existing email", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -42,24 +44,28 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Hashing the password with bcrypt
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
+		slog.Error("register: failed to hash password", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 
+	hashStr := string(hash)
 	user := &models.User{
 		Username:     req.Username,
 		Email:        req.Email,
-		PasswordHash: string(hash),
+		PasswordHash: &hashStr,
 		DisplayName:  req.DisplayName,
 	}
 
 	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
+		slog.Error("register: failed to create user", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 		return
 	}
 
 	token, err := auth.GenerateToken(user.ID, user.Email, h.jwtSecret)
 	if err != nil {
+		slog.Error("register: failed to generate token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
 	}
@@ -78,23 +84,29 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
+		slog.Error("login: failed to query user", "error", err, "email", req.Email)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
-	// Same message for both cases to prevent user enumeration attacks
-	// try to find the user by email, if not found or password doesn't match, return the same error
 	if user == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	// OAuth users don't have a password — they can't use email/password login
+	if user.PasswordHash == nil || *user.PasswordHash == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
 	token, err := auth.GenerateToken(user.ID, user.Email, h.jwtSecret)
 	if err != nil {
+		slog.Error("login: failed to generate token", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not generate token"})
 		return
 	}

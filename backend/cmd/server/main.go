@@ -75,10 +75,12 @@ func main() {
 	protected := v1.Group("")
 	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 	{
-		// Meter endpoints cada
-		// Ejemplo de un endpoint : protected.GET("/users/:user_id/leagues", leagueHandler.GetUserLeagues)
 		protected.GET("/leagues", leagueHandler.GetByUserID)
 		protected.POST("/leagues", leagueHandler.Create)
+		protected.POST("/leagues/join", leagueHandler.JoinLeague)
+		protected.GET("/leagues/:id", leagueHandler.GetByID)
+		protected.GET("/leagues/:id/members", leagueHandler.GetMembers)
+		protected.DELETE("/leagues/:id", leagueHandler.Delete)
 	}
 
 	srv := &http.Server{

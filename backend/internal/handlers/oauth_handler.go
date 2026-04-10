@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -67,6 +68,7 @@ func (h *OAuthHandler) Callback(c *gin.Context) {
 	// Check if user already exists in our DB
 	user, err := h.userRepo.GetByEmail(c.Request.Context(), supaUser.Email)
 	if err != nil {
+		slog.Error("oauth: failed to query user by email", "error", err, "email", supaUser.Email)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
@@ -80,7 +82,7 @@ func (h *OAuthHandler) Callback(c *gin.Context) {
 		user = &models.User{
 			Username:     username,
 			Email:        supaUser.Email,
-			PasswordHash: "", // OAuth users don't have a password
+			PasswordHash: nil, // OAuth users don't have a password
 			DisplayName:  displayName,
 			AvatarURL:    avatarURL,
 			AuthProvider: provider,
