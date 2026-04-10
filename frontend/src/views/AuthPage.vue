@@ -195,9 +195,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import type { Subscription } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
+const router = useRouter();
 const activeTab = ref<"login" | "register">("login");
 const loading = ref(false);
 const error = ref("");
@@ -241,10 +243,10 @@ async function handleOAuthCallback(accessToken: string) {
     }
 
     localStorage.setItem("token", result.token);
-    success.value = `¡Bienvenido, ${result.user.display_name}!`;
 
     // Clean up the Supabase session since we use our own JWT
     await supabase.auth.signOut();
+    router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
   } finally {
@@ -303,7 +305,7 @@ async function handleLogin() {
     }
 
     localStorage.setItem("token", data.token);
-    success.value = `¡Bienvenido, ${data.user.display_name}!`;
+    router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
   } finally {
@@ -330,7 +332,7 @@ async function handleRegister() {
     }
 
     localStorage.setItem("token", data.token);
-    success.value = `¡Cuenta creada! Bienvenido, ${data.user.display_name}`;
+    router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
   } finally {
