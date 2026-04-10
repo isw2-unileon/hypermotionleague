@@ -64,3 +64,8 @@ type AuthResponse struct {
 	Token string `json:"token"`
 	User  User   `json:"user"`
 }
+
+// OAuthRequest is the payload sent after a Supabase OAuth flow completes.
+type OAuthRequest struct {
+	AccessToken string `json:"access_token" binding:"required"`
+}

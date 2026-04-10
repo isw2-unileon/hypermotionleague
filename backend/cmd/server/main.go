@@ -38,6 +38,7 @@ func main() {
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
+	oauthHandler := handlers.NewOAuthHandler(repos.User, cfg.JWTSecret, cfg.SupabaseURL, cfg.SupabaseKey)
 	leagueHandler := handlers.NewLeagueHandler(repos.League)
 	gin.SetMode(cfg.GinMode)
 
@@ -68,15 +69,18 @@ func main() {
 	v1 := api.Group("/v1")
 	v1.POST("/auth/register", authHandler.Register)
 	v1.POST("/auth/login", authHandler.Login)
+	v1.POST("/auth/oauth", oauthHandler.Callback)
 
 	// Protected routes — from here on, all require a valid JWT
 	protected := v1.Group("")
 	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
 	{
-		// Meter endpoints cada
-		// Ejemplo de un endpoint : protected.GET("/users/:user_id/leagues", leagueHandler.GetUserLeagues)
 		protected.GET("/leagues", leagueHandler.GetByUserID)
 		protected.POST("/leagues", leagueHandler.Create)
+		protected.POST("/leagues/join", leagueHandler.JoinLeague)
+		protected.GET("/leagues/:id", leagueHandler.GetByID)
+		protected.GET("/leagues/:id/members", leagueHandler.GetMembers)
+		protected.DELETE("/leagues/:id", leagueHandler.Delete)
 	}
 
 	srv := &http.Server{

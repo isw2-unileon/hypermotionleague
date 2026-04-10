@@ -4,6 +4,8 @@ package config
 import (
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 // Config holds the application configuration loaded from environment variables.
@@ -12,6 +14,8 @@ type Config struct {
 	GinMode         string
 	CORSAllowOrigin string
 	JWTSecret       string
+	SupabaseURL     string
+	SupabaseKey     string
 	DB              DBConfig
 }
 
@@ -39,12 +43,17 @@ func (c DBConfig) ConnString() string {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
+// It automatically loads .env if present.
 func Load() *Config {
+	_ = godotenv.Load() // silent fail if .env not found (e.g. in production)
+
 	return &Config{
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
 		JWTSecret:       getEnv("JWT_SECRET", ""),
+		SupabaseURL:     getEnv("SUPABASE_URL", ""),
+		SupabaseKey:     getEnv("SUPABASE_SERVICE_KEY", ""),
 
 		DB: DBConfig{
 			DSN:      os.Getenv("DATABASE_URL"),

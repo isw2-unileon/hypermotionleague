@@ -8,9 +8,10 @@ type User struct {
 	ID           int64     `json:"id"`
 	Username     string    `json:"username"`
 	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"` // Never expose in JSON
+	PasswordHash *string   `json:"-"` // Never expose in JSON — nullable for OAuth users
 	DisplayName  string    `json:"display_name"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
+	AuthProvider string    `json:"auth_provider"` // "email", "google", "apple"
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
