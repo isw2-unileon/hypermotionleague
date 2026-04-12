@@ -56,6 +56,10 @@ const router = createRouter({
       path: "/:pathMatch(.*)*",
       redirect: "/leagues",
     },
+    { path: "/standings", 
+      name: "standings",
+      component: () => import("@/views/StandingsPage.vue") },
+
   ],
 });
 
