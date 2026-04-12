@@ -40,6 +40,8 @@ func main() {
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
 	oauthHandler := handlers.NewOAuthHandler(repos.User, cfg.JWTSecret, cfg.SupabaseURL, cfg.SupabaseKey)
 	leagueHandler := handlers.NewLeagueHandler(repos.League)
+	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
+	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -71,6 +73,11 @@ func main() {
 	v1.POST("/auth/login", authHandler.Login)
 	v1.POST("/auth/oauth", oauthHandler.Callback)
 
+	// Players: this is public no auth required
+	v1.GET("/players/:id", playerHandler.GetByID)
+	v1.GET("players", playerHandler.List)
+	v1.GET("/players/:id/points", playerHandler.GetPointsByMatchday)
+
 	// Protected routes — from here on, all require a valid JWT
 	protected := v1.Group("")
 	protected.Use(middleware.JWTAuth(cfg.JWTSecret))
@@ -81,6 +88,12 @@ func main() {
 		protected.GET("/leagues/:id", leagueHandler.GetByID)
 		protected.GET("/leagues/:id/members", leagueHandler.GetMembers)
 		protected.DELETE("/leagues/:id", leagueHandler.Delete)
+
+		protected.GET("/leagues/:id/matchdays", matchdayHandler.GetByLeague)
+		protected.GET("/leagues/:id/matchdays/current", matchdayHandler.GetCurrent)
+		protected.GET("/leagues/:id/standings", matchdayHandler.GetStandings)
+		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
+
 	}
 
 	srv := &http.Server{
