@@ -1,4 +1,4 @@
-import router from "@/router";
+  import router from "@/router";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
