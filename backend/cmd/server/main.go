@@ -42,6 +42,8 @@ func main() {
 	leagueHandler := handlers.NewLeagueHandler(repos.League)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
+	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
+	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -94,6 +96,13 @@ func main() {
 		protected.GET("/leagues/:id/standings", matchdayHandler.GetStandings)
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
+		// Team
+		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
+
+		// Lineup
+		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
+		protected.PUT("/leagues/:id/matchdays/:number/lineup", lineupHandler.SaveLineup)
+		protected.DELETE("/leagues/:id/matchdays/:number/lineup/players/:player_id", lineupHandler.RemoveLineupPlayer)
 	}
 
 	srv := &http.Server{
