@@ -8,19 +8,19 @@ import (
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
 )
 
-// TeamHandler gestiona las peticiones HTTP relacionadas con el equipo del usuario.
+// TeamHandler handles HTTP requests related to the user's device.
 type TeamHandler struct {
 	teamRepo   repository.TeamRepository
 	leagueRepo repository.LeagueRepository
 }
 
-// NewTeamHandler crea una nueva instancia de TeamHandler.
+// NewTeamHandler creates a new instance of TeamHandler.
 func NewTeamHandler(teamRepo repository.TeamRepository, leagueRepo repository.LeagueRepository) *TeamHandler {
 	return &TeamHandler{teamRepo: teamRepo, leagueRepo: leagueRepo}
 }
 
-// GetUserTeam devuelve el equipo completo del usuario en una liga,
-// incluyendo los jugadores con sus detalles y el presupuesto restante.
+// GetUserTeam returns the complete team of the user in a league,
+// including the list of players and their details.
 // GET /api/v1/leagues/:id/team
 func (h *TeamHandler) GetUserTeam(c *gin.Context) {
 	userID := c.GetInt64("userID")
@@ -35,7 +35,7 @@ func (h *TeamHandler) GetUserTeam(c *gin.Context) {
 		return
 	}
 
-	// Verificar que el usuario pertenece a la liga
+	// Verify that the user belongs to the league
 	member, err := h.leagueRepo.GetMember(c.Request.Context(), leagueID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar membresía"})

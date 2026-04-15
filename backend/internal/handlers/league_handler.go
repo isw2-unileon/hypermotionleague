@@ -11,12 +11,12 @@ import (
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
 )
 
-// LeagueHandler gestiona las peticiones HTTP para las ligas
+// LeagueHandler handles HTTP requests for leagues
 type LeagueHandler struct {
 	repo repository.LeagueRepository
 }
 
-// NewLeagueHandler crea una nueva instancia del handler
+// NewLeagueHandler creates a new instance of the handler
 func NewLeagueHandler(repo repository.LeagueRepository) *LeagueHandler {
 	return &LeagueHandler{repo: repo}
 }
@@ -84,7 +84,7 @@ func (h *LeagueHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, league)
 }
 
-// GetByID busca una liga por su ID
+// GetByID searches for a league by its ID and returns it
 func (h *LeagueHandler) GetByID(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -105,7 +105,7 @@ func (h *LeagueHandler) GetByID(c *gin.Context) {
 	c.JSON(http.StatusOK, league)
 }
 
-// GetByUserID devuelve las ligas del usuario autenticado
+// GetByUserID returns the leagues that a user is part of, either as owner or member
 func (h *LeagueHandler) GetByUserID(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {
@@ -126,7 +126,7 @@ func (h *LeagueHandler) GetByUserID(c *gin.Context) {
 	c.JSON(http.StatusOK, leagues)
 }
 
-// JoinLeague permite a un usuario unirse a una liga mediante código de invitación
+// JoinLeague allows a user to join a league using an invitation code
 func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {
@@ -187,7 +187,7 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 	c.JSON(http.StatusOK, league)
 }
 
-// GetMembers devuelve los miembros de una liga
+// GetMembers returns the members of a league
 func (h *LeagueHandler) GetMembers(c *gin.Context) {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -208,7 +208,7 @@ func (h *LeagueHandler) GetMembers(c *gin.Context) {
 	c.JSON(http.StatusOK, members)
 }
 
-// Delete elimina una liga (solo el owner puede hacerlo)
+// Delete deletes a league (only the owner can do it)
 func (h *LeagueHandler) Delete(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {

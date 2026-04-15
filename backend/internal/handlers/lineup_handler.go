@@ -9,14 +9,14 @@ import (
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
 )
 
-// LineupHandler gestiona las peticiones HTTP relacionadas con alineaciones.
+// LineupHandler handles HTTP requests related to lineups.
 type LineupHandler struct {
 	matchdayRepo repository.MatchdayRepository
 	teamRepo     repository.TeamRepository
 	leagueRepo   repository.LeagueRepository
 }
 
-// NewLineupHandler crea una nueva instancia de LineupHandler.
+// NewLineupHandler creates a new instance of LineupHandler.
 func NewLineupHandler(
 	matchdayRepo repository.MatchdayRepository,
 	teamRepo repository.TeamRepository,
@@ -29,7 +29,7 @@ func NewLineupHandler(
 	}
 }
 
-// getMatchdayByNumber es un helper que busca una jornada por su número dentro de una liga.
+// getMatchdayByNumber  is a helper that searches for a matchday by its number within a league.
 func (h *LineupHandler) getMatchdayByNumber(c *gin.Context, leagueID int64, number int) (*models.Matchday, bool) {
 	matchdays, err := h.matchdayRepo.GetByLeague(c.Request.Context(), leagueID)
 	if err != nil {
@@ -45,7 +45,7 @@ func (h *LineupHandler) getMatchdayByNumber(c *gin.Context, leagueID int64, numb
 	return nil, false
 }
 
-// GetLineup devuelve la alineación del usuario para una jornada concreta.
+// GetLineup returns the lineup of the authenticated user for a specific matchday.
 // GET /api/v1/leagues/:id/matchdays/:number/lineup
 func (h *LineupHandler) GetLineup(c *gin.Context) {
 	userID := c.GetInt64("userID")
@@ -94,7 +94,7 @@ func (h *LineupHandler) GetLineup(c *gin.Context) {
 	c.JSON(http.StatusOK, lineup)
 }
 
-// SaveLineup crea o actualiza la alineación del usuario para una jornada.
+// SaveLineup creates or updates the user's lineup for a matchday.
 // PUT /api/v1/leagues/:id/matchdays/:number/lineup
 func (h *LineupHandler) SaveLineup(c *gin.Context) {
 	userID := c.GetInt64("userID")
@@ -136,7 +136,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		return
 	}
 
-	// Validar que hay exactamente 11 titulares
+	// validate that there are exactly 11 starters
 	starters := 0
 	for _, p := range req.Players {
 		if p.IsStarter {
@@ -161,7 +161,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		}
 	}
 
-	// Obtener o crear el lineup
+	// Obtain or create lineup for this matchday
 	lineup, err := h.matchdayRepo.GetLineup(c.Request.Context(), leagueID, userID, matchday.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la alineación"})
@@ -180,7 +180,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		lineup = &models.LineupWithPlayers{Lineup: *newLineup}
 	}
 
-	// Guardar cada jugador en la alineación (upsert)
+	// generate a map of playerID to position for easy lookup
 	for _, p := range req.Players {
 		lp := &models.LineupPlayer{
 			LineupID:  lineup.ID,
@@ -204,7 +204,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 	c.JSON(http.StatusOK, saved)
 }
 
-// RemoveLineupPlayer elimina un jugador de la alineación del usuario.
+// RemoveLineupPlayer deletes a player from the user's lineup for a matchday.
 // DELETE /api/v1/leagues/:id/matchdays/:number/lineup/players/:player_id
 func (h *LineupHandler) RemoveLineupPlayer(c *gin.Context) {
 	userID := c.GetInt64("userID")
