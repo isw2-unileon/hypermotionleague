@@ -40,12 +40,17 @@ const router = createRouter({
     {
       path: "/standings",
       name: "standings",
-      component: PlaceholderPage,
+      component: () => import("@/views/StandingsPage.vue"),
     },
     {
       path: "/team",
       name: "team",
-      component: PlaceholderPage,
+      component: () => import("@/views/TeamPage.vue"),
+    },
+    {
+      path: "/lineup/:leagueId/:matchdayNumber",
+      name: "lineup",
+      component: () => import("@/views/LineupPage.vue"),
     },
     {
       path: "/market",
@@ -56,10 +61,6 @@ const router = createRouter({
       path: "/:pathMatch(.*)*",
       redirect: "/leagues",
     },
-    { path: "/standings", 
-      name: "standings",
-      component: () => import("@/views/StandingsPage.vue") },
-
   ],
 });
 
