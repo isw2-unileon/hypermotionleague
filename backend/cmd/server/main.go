@@ -44,12 +44,17 @@ func main() {
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
 	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
+
+	// ---> NEW: Initialize the MarketHandler (Developer 4) <---
+	// Note: We inject Market, Player, and Team repos here for the validations.
+	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team)
+
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// public routes, no auth required
+	// Public routes, no auth required
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -58,8 +63,8 @@ func main() {
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
-	// GET /api/db-test checks if the database connection is alive
 
+	// GET /api/db-test checks if the database connection is alive
 	api.GET("/db-test", func(c *gin.Context) {
 		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
@@ -103,6 +108,13 @@ func main() {
 		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
 		protected.PUT("/leagues/:id/matchdays/:number/lineup", lineupHandler.SaveLineup)
 		protected.DELETE("/leagues/:id/matchdays/:number/lineup/players/:player_id", lineupHandler.RemoveLineupPlayer)
+		// Market
+		protected.GET("/leagues/:id/market/players", marketHandler.GetAvailablePlayers)
+		protected.GET("/leagues/:id/market/listings", marketHandler.GetActiveListings)
+		protected.POST("/leagues/:id/market/bids", marketHandler.PlaceBid)
+		protected.GET("/leagues/:id/market/bids", marketHandler.GetUserBids)
+		protected.DELETE("/leagues/:id/market/bids/:bid_id", marketHandler.CancelBid)
+		protected.GET("/leagues/:id/market/status", marketHandler.GetMarketStatus)
 	}
 
 	srv := &http.Server{
