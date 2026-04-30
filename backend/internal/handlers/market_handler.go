@@ -68,7 +68,7 @@ func (h *MarketHandler) GetActiveListings(c *gin.Context) {
 // 3. PlaceBid - Validates and registers a new bid.
 func (h *MarketHandler) PlaceBid(c *gin.Context) {
 	// MOCK: Simulating user 1 until Auth logic is implemented by Dev 1.
-	userID := int64(1)
+	userID := c.GetInt64("userID")
 
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -135,7 +135,7 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 
 // 4. GetUserBids - Returns the user's currently active bids.
 func (h *MarketHandler) GetUserBids(c *gin.Context) {
-	userID := int64(1) // MOCK User
+	userID := c.GetInt64("userID")
 
 	bids, err := h.marketRepo.GetUserActiveBids(c.Request.Context(), userID)
 	if err != nil {
@@ -148,7 +148,7 @@ func (h *MarketHandler) GetUserBids(c *gin.Context) {
 
 // 5. CancelBid - Cancels one of the user's active bids.
 func (h *MarketHandler) CancelBid(c *gin.Context) {
-	userID := int64(1) // MOCK User
+	userID := c.GetInt64("userID")
 
 	bidID, err := strconv.ParseInt(c.Param("bid_id"), 10, 64)
 	if err != nil {
@@ -166,7 +166,7 @@ func (h *MarketHandler) CancelBid(c *gin.Context) {
 
 // 6. GetMarketStatus - Returns the market status and closing time.
 func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
-	userID := int64(1) // MOCK User
+	userID := c.GetInt64("userID")
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
