@@ -147,8 +147,7 @@ const error = ref("");
 
 onMounted(async () => {
   try {
-    const data = await api.get<{ leagues: League[] }>("/api/v1/leagues");
-    leagues.value = data.leagues ?? [];
+    leagues.value = await api.get<League[]>("/api/v1/leagues");
   } catch {
     error.value = "No se pudieron cargar las ligas";
   }
