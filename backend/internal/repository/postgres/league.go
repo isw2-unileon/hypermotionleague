@@ -166,6 +166,39 @@ func (r *LeagueRepo) GetMembers(ctx context.Context, leagueID int64) ([]models.L
 	return members, rows.Err()
 }
 
+// GetMembersWithUsers retrieves all members of a league joined with their
+// user info (username, display name, avatar), so callers can render real
+// names without an extra fetch per member.
+func (r *LeagueRepo) GetMembersWithUsers(ctx context.Context, leagueID int64) ([]models.LeagueMemberWithUser, error) {
+	query := `
+		SELECT lm.id, lm.league_id, lm.user_id, lm.role, lm.budget, lm.joined_at,
+		       u.username, u.display_name, u.avatar_url
+		FROM league_members lm
+		INNER JOIN users u ON u.id = lm.user_id
+		WHERE lm.league_id = $1
+		ORDER BY lm.role, lm.joined_at`
+
+	rows, err := r.pool.Query(ctx, query, leagueID)
+	if err != nil {
+		return nil, fmt.Errorf("get league members with users: %w", err)
+	}
+	defer rows.Close()
+
+	var members []models.LeagueMemberWithUser
+	for rows.Next() {
+		var m models.LeagueMemberWithUser
+		err := rows.Scan(
+			&m.ID, &m.LeagueID, &m.UserID, &m.Role, &m.Budget, &m.JoinedAt,
+			&m.Username, &m.DisplayName, &m.AvatarURL,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan member with user: %w", err)
+		}
+		members = append(members, m)
+	}
+	return members, rows.Err()
+}
+
 // GetMember retrieves a specific member of a league.
 func (r *LeagueRepo) GetMember(ctx context.Context, leagueID, userID int64) (*models.LeagueMember, error) {
 	query := `

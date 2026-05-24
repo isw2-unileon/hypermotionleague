@@ -63,12 +63,21 @@
               class="flex items-center justify-between"
             >
               <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-400 text-xs font-bold">
-                  {{ member.user_id }}
+                <img
+                  v-if="member.avatar_url"
+                  :src="member.avatar_url"
+                  :alt="member.display_name || member.username"
+                  class="w-8 h-8 rounded-full object-cover"
+                />
+                <div
+                  v-else
+                  class="w-8 h-8 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-400 text-xs font-bold"
+                >
+                  {{ (member.display_name || member.username).charAt(0).toUpperCase() }}
                 </div>
                 <div>
                   <p class="text-white text-sm font-medium">
-                    Jugador #{{ member.user_id }}
+                    {{ member.display_name || member.username }}
                     <span v-if="member.role === 'owner'" class="text-amber-400 text-xs ml-1">👑</span>
                   </p>
                   <p class="text-green-300/40 text-xs">{{ formatBudget(member.budget) }}</p>
@@ -132,6 +141,9 @@ interface Member {
   role: string;
   budget: number;
   joined_at: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string | null;
 }
 
 const route = useRoute();
