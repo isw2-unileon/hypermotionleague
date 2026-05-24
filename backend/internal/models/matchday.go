@@ -67,11 +67,22 @@ type Standings struct {
 	Rankings   []UserStanding `json:"rankings"`
 }
 
+// StandingPlayer represents a player's info in standings.
+type StandingPlayer struct {
+	PlayerID  int64          `json:"player_id"`
+	FirstName string         `json:"first_name"`
+	LastName  string         `json:"last_name"`
+	Position  PlayerPosition `json:"position"`
+	TeamName  string         `json:"team_name"`
+	Points    int            `json:"points"`
+}
+
 // UserStanding represents a user's position in the standings.
 type UserStanding struct {
-	Rank        int    `json:"rank"`
-	UserID      int64  `json:"user_id"`
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	TotalPoints int    `json:"total_points"`
+	Rank        int              `json:"rank"`
+	UserID      int64            `json:"user_id"`
+	Username    string           `json:"username"`
+	DisplayName string           `json:"display_name"`
+	TotalPoints int              `json:"total_points"`
+	Players     []StandingPlayer `json:"players"`
 }

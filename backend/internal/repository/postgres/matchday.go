@@ -219,7 +219,6 @@ func (r *MatchdayRepo) GetStandings(ctx context.Context, leagueID int64, matchda
 	var args []interface{}
 
 	if matchdayID != nil {
-		// Standings for a specific matchday
 		query = `
 			SELECT u.id, u.username, u.display_name, COALESCE(SUM(lp.points), 0) as total_points
 			FROM league_members lm
@@ -231,7 +230,6 @@ func (r *MatchdayRepo) GetStandings(ctx context.Context, leagueID int64, matchda
 			ORDER BY total_points DESC`
 		args = []interface{}{leagueID, *matchdayID}
 	} else {
-		// Overall standings
 		query = `
 			SELECT u.id, u.username, u.display_name, COALESCE(SUM(l.total_points), 0) as total_points
 			FROM league_members lm
@@ -258,8 +256,45 @@ func (r *MatchdayRepo) GetStandings(ctx context.Context, leagueID int64, matchda
 			return nil, fmt.Errorf("scan standing: %w", err)
 		}
 		s.Rank = rank
+
+		if matchdayID != nil {
+			players, err := r.getLineupPlayers(ctx, *matchdayID, s.UserID)
+			if err != nil {
+				return nil, fmt.Errorf("get lineup players: %w", err)
+			}
+			s.Players = players
+		}
+
 		standings.Rankings = append(standings.Rankings, s)
 	}
 
 	return standings, rows.Err()
+}
+
+func (r *MatchdayRepo) getLineupPlayers(ctx context.Context, matchdayID, userID int64) ([]models.StandingPlayer, error) {
+	query := `
+		SELECT p.id, p.first_name, p.last_name, p.position, p.team_name, COALESCE(lp.points, 0) as points
+		FROM lineups l
+		INNER JOIN lineup_players lp ON lp.lineup_id = l.id
+		INNER JOIN players p ON lp.player_id = p.id
+		WHERE l.matchday_id = $1 AND l.user_id = $2
+		ORDER BY lp.is_starter DESC, lp.position`
+
+	rows, err := r.pool.Query(ctx, query, matchdayID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	players := []models.StandingPlayer{}
+	for rows.Next() {
+		var p models.StandingPlayer
+		err := rows.Scan(&p.PlayerID, &p.FirstName, &p.LastName, &p.Position, &p.TeamName, &p.Points)
+		if err != nil {
+			return nil, err
+		}
+		players = append(players, p)
+	}
+
+	return players, rows.Err()
 }
