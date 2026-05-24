@@ -42,6 +42,7 @@ func main() {
 	leagueHandler := handlers.NewLeagueHandler(repos.League)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
+	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -94,6 +95,7 @@ func main() {
 		protected.GET("/leagues/:id/standings", matchdayHandler.GetStandings)
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
+		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
 	}
 
 	srv := &http.Server{

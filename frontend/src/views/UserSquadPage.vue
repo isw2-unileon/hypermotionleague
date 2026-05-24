@@ -210,7 +210,7 @@ function positionClass(position: string): string {
 }
 
 onMounted(async () => {
-  await fetchMatchdays();
+  await Promise.all([fetchUserName(), fetchMatchdays()]);
   if (matchdays.value.length > 0) {
     selectedMatchdayNumber.value = matchdays.value[0].number;
     await fetchUserStanding();
@@ -218,12 +218,23 @@ onMounted(async () => {
 });
 
 watch(leagueId, async () => {
-  await fetchMatchdays();
+  await Promise.all([fetchUserName(), fetchMatchdays()]);
   if (matchdays.value.length > 0) {
     selectedMatchdayNumber.value = matchdays.value[0].number;
     await fetchUserStanding();
   }
 });
+
+async function fetchUserName() {
+  try {
+    const team = await api.get<{ username: string; display_name: string }>(
+      `/api/v1/leagues/${leagueId.value}/users/${userId.value}/team`,
+    );
+    userName.value = team.display_name || team.username || "Usuario";
+  } catch {
+    userName.value = "Usuario";
+  }
+}
 
 async function onMatchdayChange() {
   await fetchUserStanding();
@@ -257,7 +268,6 @@ async function fetchUserStanding() {
 
     if (userRank) {
       userStanding.value = userRank;
-      userName.value = userRank.display_name || userRank.username || "Usuario";
     } else {
       error.value = "Usuario no encontrado en la clasificación";
       userStanding.value = null;
