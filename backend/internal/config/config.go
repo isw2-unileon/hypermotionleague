@@ -43,11 +43,13 @@ func (c DBConfig) ConnString() string {
 }
 
 // Load reads configuration from environment variables with sensible defaults.
-// It automatically loads .env if present.
-func Load() *Config {
+// It automatically loads .env if present, and returns an error if any required
+// setting is missing — booting with an empty JWT_SECRET would let the server
+// sign tokens with "" and make forgery trivial, so we fail fast instead.
+func Load() (*Config, error) {
 	_ = godotenv.Load() // silent fail if .env not found (e.g. in production)
 
-	return &Config{
+	cfg := &Config{
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
@@ -65,6 +67,12 @@ func Load() *Config {
 			SSLMode:  getEnv("DB_SSLMODE", "require"),
 		},
 	}
+
+	if cfg.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET must be set and non-empty")
+	}
+
+	return cfg, nil
 }
 
 func getEnv(key, fallback string) string {

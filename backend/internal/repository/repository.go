@@ -39,6 +39,7 @@ type LeagueRepository interface {
 	// Member operations
 	AddMember(ctx context.Context, member *models.LeagueMember) error
 	GetMembers(ctx context.Context, leagueID int64) ([]models.LeagueMember, error)
+	GetMembersWithUsers(ctx context.Context, leagueID int64) ([]models.LeagueMemberWithUser, error)
 	GetMember(ctx context.Context, leagueID, userID int64) (*models.LeagueMember, error)
 	UpdateMemberBudget(ctx context.Context, leagueID, userID int64, budget int) error
 	RemoveMember(ctx context.Context, leagueID, userID int64) error

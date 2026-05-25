@@ -23,7 +23,11 @@ var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 func main() {
 	ctx := context.Background()
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	// Initialize database connection
 	pool, err := db.NewPool(ctx, cfg.DB)
@@ -48,7 +52,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
-	// public routes, no auth required
+	// Public routes, no auth required
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -57,8 +61,8 @@ func main() {
 	api.GET("/hello", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "Hello from the API"})
 	})
-	// GET /api/db-test checks if the database connection is alive
 
+	// GET /api/db-test checks if the database connection is alive
 	api.GET("/db-test", func(c *gin.Context) {
 		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
@@ -96,6 +100,20 @@ func main() {
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
 		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
+		// Team
+		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
+
+		// Lineup
+		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
+		protected.PUT("/leagues/:id/matchdays/:number/lineup", lineupHandler.SaveLineup)
+		protected.DELETE("/leagues/:id/matchdays/:number/lineup/players/:player_id", lineupHandler.RemoveLineupPlayer)
+		// Market
+		protected.GET("/leagues/:id/market/players", marketHandler.GetAvailablePlayers)
+		protected.GET("/leagues/:id/market/listings", marketHandler.GetActiveListings)
+		protected.POST("/leagues/:id/market/bids", marketHandler.PlaceBid)
+		protected.GET("/leagues/:id/market/bids", marketHandler.GetUserBids)
+		protected.DELETE("/leagues/:id/market/bids/:bid_id", marketHandler.CancelBid)
+		protected.GET("/leagues/:id/market/status", marketHandler.GetMarketStatus)
 	}
 
 	srv := &http.Server{
