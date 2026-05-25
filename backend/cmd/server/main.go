@@ -47,12 +47,6 @@ func main() {
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
-	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
-
-	// ---> NEW: Initialize the MarketHandler (Developer 4) <---
-	// Note: We inject Market, Player, and Team repos here for the validations.
-	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team)
-
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -105,6 +99,7 @@ func main() {
 		protected.GET("/leagues/:id/standings", matchdayHandler.GetStandings)
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
+		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
 		// Team
 		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 

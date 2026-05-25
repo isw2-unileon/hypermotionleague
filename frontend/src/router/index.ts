@@ -37,10 +37,15 @@ const router = createRouter({
       name: "league-detail",
       component: () => import("@/views/LeagueDetailPage.vue"),
     },
-    {
-      path: "/standings",
+    { path: "/standings", 
       name: "standings",
-      component: () => import("@/views/StandingsPage.vue"),
+      component: () => import("@/views/StandingsPage.vue") 
+    },
+   
+    {
+      path: "/squad/:leagueId/:userId",
+      name: "user-squad",
+      component: () => import("@/views/UserSquadPage.vue"),
     },
     {
       path: "/team",
@@ -61,6 +66,7 @@ const router = createRouter({
       path: "/:pathMatch(.*)*",
       redirect: "/leagues",
     },
+   
   ],
 });
 

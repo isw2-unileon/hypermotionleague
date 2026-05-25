@@ -105,8 +105,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import AppLayout from "@/layouts/AppLayout.vue";
 import api from "@/lib/api";
 
@@ -135,6 +135,7 @@ interface Standings {
   rankings: UserStanding[];
 }
 
+const route = useRoute();
 const router = useRouter();
 
 const leagues = ref<League[]>([]);
@@ -150,7 +151,33 @@ onMounted(async () => {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
   } catch {
     error.value = "No se pudieron cargar las ligas";
+    return;
   }
+
+  const queryLeagueId = Number(route.query.leagueId);
+  const queryMatchday = route.query.matchday;
+
+  if (
+    queryLeagueId &&
+    leagues.value.some((l) => l.id === queryLeagueId)
+  ) {
+    selectedLeagueId.value = queryLeagueId;
+    await fetchMatchdays();
+    if (queryMatchday !== undefined && queryMatchday !== null && queryMatchday !== "") {
+      const num = Number(queryMatchday);
+      if (matchdays.value.some((m) => m.number === num)) {
+        selectedMatchdayNumber.value = num;
+      }
+    }
+    await fetchStandings();
+  }
+});
+
+watch([selectedLeagueId, selectedMatchdayNumber], ([leagueId, matchday]) => {
+  const query: Record<string, string> = {};
+  if (leagueId !== "") query.leagueId = String(leagueId);
+  if (matchday !== null) query.matchday = String(matchday);
+  router.replace({ query });
 });
 
 async function onLeagueChange() {
