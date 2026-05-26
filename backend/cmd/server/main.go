@@ -47,6 +47,8 @@ func main() {
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
+	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
+	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()

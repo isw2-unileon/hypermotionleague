@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
@@ -136,6 +137,11 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		return
 	}
 
+	if !matchday.StartDate.After(time.Now()) {
+		c.JSON(http.StatusConflict, gin.H{"error": "matchday already started"})
+		return
+	}
+
 	// validate that there are exactly 11 starters
 	starters := 0
 	for _, p := range req.Players {
@@ -180,18 +186,18 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		lineup = &models.LineupWithPlayers{Lineup: *newLineup}
 	}
 
-	// generate a map of playerID to position for easy lookup
-	for _, p := range req.Players {
-		lp := &models.LineupPlayer{
+	players := make([]models.LineupPlayer, len(req.Players))
+	for i, p := range req.Players {
+		players[i] = models.LineupPlayer{
 			LineupID:  lineup.ID,
 			PlayerID:  p.PlayerID,
 			Position:  p.Position,
 			IsStarter: p.IsStarter,
 		}
-		if err := h.matchdayRepo.UpsertLineupPlayer(c.Request.Context(), lp); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar jugador en la alineación"})
-			return
-		}
+	}
+	if err := h.matchdayRepo.ReplaceLineupPlayers(c.Request.Context(), lineup.ID, players); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar la alineación"})
+		return
 	}
 
 	// Devolver la alineación actualizada
