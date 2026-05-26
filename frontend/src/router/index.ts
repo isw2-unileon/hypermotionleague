@@ -76,9 +76,14 @@ const router = createRouter({
 // user to /auth without waiting for a 401.
 function isTokenValid(token: string | null): boolean {
   if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  const payloadStr = parts[1];
+  if (!payloadStr) return false;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return typeof payload.exp === "number" && payload.exp > Date.now() / 1000;
+    const payload = JSON.parse(atob(payloadStr)) as { exp?: number };
+    return typeof payload.exp === "number"
+      && payload.exp > Date.now() / 1000;
   } catch {
     return false;
   }
