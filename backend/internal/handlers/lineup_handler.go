@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
@@ -133,6 +134,11 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 
 	matchday, ok := h.getMatchdayByNumber(c, leagueID, number)
 	if !ok {
+		return
+	}
+
+	if !matchday.StartDate.After(time.Now()) {
+		c.JSON(http.StatusConflict, gin.H{"error": "matchday already started"})
 		return
 	}
 
