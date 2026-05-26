@@ -103,7 +103,7 @@ func main() {
 
 		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
 		// Team
-		protected.GET("/leagues/:id/team", teamHandler.GetUserTeamInLeague)
+		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 
 		// Lineup
 		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
