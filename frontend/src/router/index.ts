@@ -81,14 +81,9 @@ function isTokenValid(token: string | null): boolean {
   const payloadStr = parts[1];
   if (!payloadStr) return false;
   try {
-<<<<<<< HEAD
     const payload = JSON.parse(atob(payloadStr)) as { exp?: number };
     return typeof payload.exp === "number"
       && payload.exp > Date.now() / 1000;
-=======
-    const payload = JSON.parse(atob(token.split(".")[1] ?? ""));
-    return typeof payload.exp === "number" && payload.exp > Date.now() / 1000;
->>>>>>> 15c02f5164949d8ceae6fad3018d46274ad2a593
   } catch {
     return false;
   }
