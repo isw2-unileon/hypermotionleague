@@ -183,6 +183,37 @@ func (r *MatchdayRepo) GetLineup(ctx context.Context, leagueID, userID, matchday
 	return lineup, rows.Err()
 }
 
+// ReplaceLineupPlayers atomically replaces all players in a lineup inside a transaction:
+// deletes existing rows then bulk-inserts the new set.
+func (r *MatchdayRepo) ReplaceLineupPlayers(ctx context.Context, lineupID int64, players []models.LineupPlayer) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM lineup_players WHERE lineup_id = $1`, lineupID); err != nil {
+		return fmt.Errorf("delete lineup players: %w", err)
+	}
+
+	if len(players) > 0 {
+		rows := make([][]interface{}, len(players))
+		for i, p := range players {
+			rows[i] = []interface{}{lineupID, p.PlayerID, p.Position, p.IsStarter, p.Points}
+		}
+		if _, err = tx.CopyFrom(
+			ctx,
+			pgx.Identifier{"lineup_players"},
+			[]string{"lineup_id", "player_id", "position", "is_starter", "points"},
+			pgx.CopyFromRows(rows),
+		); err != nil {
+			return fmt.Errorf("insert lineup players: %w", err)
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 // UpsertLineupPlayer adds or updates a player in a lineup.
 func (r *MatchdayRepo) UpsertLineupPlayer(ctx context.Context, lp *models.LineupPlayer) error {
 	query := `
