@@ -83,6 +83,7 @@ type MatchdayRepository interface {
 	// Lineup operations
 	CreateLineup(ctx context.Context, lineup *models.Lineup) error
 	GetLineup(ctx context.Context, leagueID, userID, matchdayID int64) (*models.LineupWithPlayers, error)
+	ReplaceLineupPlayers(ctx context.Context, lineupID int64, players []models.LineupPlayer) error
 	UpsertLineupPlayer(ctx context.Context, lp *models.LineupPlayer) error
 	RemoveLineupPlayer(ctx context.Context, lineupID, playerID int64) error
 	UpdateLineupPoints(ctx context.Context, lineupID int64, totalPoints int) error
