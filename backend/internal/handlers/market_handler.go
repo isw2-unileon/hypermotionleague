@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
@@ -13,15 +14,17 @@ import (
 type MarketHandler struct {
 	marketRepo *postgres.MarketRepo
 	playerRepo *postgres.PlayerRepo
-	teamRepo   *postgres.TeamRepo // ADDED: Team repository for budget validation
+	teamRepo   *postgres.TeamRepo
+	leagueRepo *postgres.LeagueRepo // ADDED: League repository for member validation
 }
 
 // NewMarketHandler creates a new instance by injecting the required repositories.
-func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.PlayerRepo, teamRepo *postgres.TeamRepo) *MarketHandler {
+func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.PlayerRepo, teamRepo *postgres.TeamRepo, leagueRepo *postgres.LeagueRepo) *MarketHandler {
 	return &MarketHandler{
 		marketRepo: marketRepo,
 		playerRepo: playerRepo,
 		teamRepo:   teamRepo,
+		leagueRepo: leagueRepo,
 	}
 }
 
@@ -31,11 +34,36 @@ type BidRequest struct {
 	Amount    float64 `json:"amount"`
 }
 
+// requireMember is a private helper that checks if a user is a member of the league
+func (h *MarketHandler) requireMember(c *gin.Context, leagueID, userID int64) bool {
+	member, err := h.leagueRepo.GetMember(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar la membresía"})
+		return false
+	}
+	if member == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No eres miembro de esta liga"})
+		return false
+	}
+	return true
+}
+
 // 1. GetAvailablePlayers - Returns unsigned players in a specific league.
 func (h *MarketHandler) GetAvailablePlayers(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
 		return
 	}
 
@@ -50,9 +78,20 @@ func (h *MarketHandler) GetAvailablePlayers(c *gin.Context) {
 
 // 2. GetActiveListings - Returns the players currently listed on the market.
 func (h *MarketHandler) GetActiveListings(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
 		return
 	}
 
@@ -67,12 +106,20 @@ func (h *MarketHandler) GetActiveListings(c *gin.Context) {
 
 // 3. PlaceBid - Validates and registers a new bid.
 func (h *MarketHandler) PlaceBid(c *gin.Context) {
-	// MOCK: Simulating user 1 until Auth logic is implemented by Dev 1.
 	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
 		return
 	}
 
@@ -82,7 +129,6 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		return
 	}
 
-	// Validation 1: Amount must be greater than 0
 	if req.Amount <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Bid amount must be greater than 0"})
 		return
@@ -90,7 +136,26 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 
 	ctx := c.Request.Context()
 
-	// Validation 2: Maximum 5 active bids per user
+	// --- NEW: Security Listing Validations ---
+	listing, err := h.marketRepo.GetListingByID(ctx, req.ListingID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve listing"})
+		return
+	}
+	if listing == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Listing not found"})
+		return
+	}
+	if listing.LeagueID != leagueID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Cross-league IDOR detected: Listing does not belong to this league"})
+		return
+	}
+	if listing.ExpiresAt.Before(time.Now()) {
+		c.JSON(http.StatusConflict, gin.H{"error": "Listing has expired"})
+		return
+	}
+	// -----------------------------------------
+
 	activeBids, err := h.marketRepo.CountUserActiveBids(ctx, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check your active bids"})
@@ -101,7 +166,6 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		return
 	}
 
-	// Validation 3: Sufficient budget (Using TeamRepo)
 	userTeam, err := h.teamRepo.GetUserTeam(ctx, leagueID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user budget"})
@@ -116,7 +180,6 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		return
 	}
 
-	// Create the bid model
 	bid := &models.Bid{
 		ListingID: req.ListingID,
 		UserID:    userID,
@@ -124,7 +187,6 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		Status:    "active",
 	}
 
-	// Save the bid to the database
 	if err := h.marketRepo.PlaceBid(ctx, bid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to place the bid"})
 		return
@@ -136,6 +198,21 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 // 4. GetUserBids - Returns the user's currently active bids.
 func (h *MarketHandler) GetUserBids(c *gin.Context) {
 	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
+		return
+	}
 
 	bids, err := h.marketRepo.GetUserActiveBids(c.Request.Context(), userID)
 	if err != nil {
@@ -149,6 +226,21 @@ func (h *MarketHandler) GetUserBids(c *gin.Context) {
 // 5. CancelBid - Cancels one of the user's active bids.
 func (h *MarketHandler) CancelBid(c *gin.Context) {
 	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
+		return
+	}
 
 	bidID, err := strconv.ParseInt(c.Param("bid_id"), 10, 64)
 	if err != nil {
@@ -167,9 +259,19 @@ func (h *MarketHandler) CancelBid(c *gin.Context) {
 // 6. GetMarketStatus - Returns the market status and closing time.
 func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
 	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league
+	if !h.requireMember(c, leagueID, userID) {
 		return
 	}
 
