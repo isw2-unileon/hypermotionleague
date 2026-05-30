@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -11,7 +15,15 @@ import (
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/auth"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// pgUniqueViolation is the SQLSTATE code for a unique_violation error.
+// See https://www.postgresql.org/docs/current/errcodes-appendix.html.
+const pgUniqueViolation = "23505"
+
+// maxUsernameRetries caps how many random suffixes we'll try before giving up.
+const maxUsernameRetries = 5
 
 type OAuthHandler struct {
 	userRepo    *postgres.UserRepo
@@ -76,11 +88,11 @@ func (h *OAuthHandler) Callback(c *gin.Context) {
 	if user == nil {
 		// Extract display name from Supabase metadata
 		displayName := extractName(supaUser.UserMetadata)
-		username := generateUsername(supaUser.Email)
+		baseUsername := generateUsername(supaUser.Email)
 		avatarURL := extractString(supaUser.UserMetadata, "avatar_url")
 
 		user = &models.User{
-			Username:     username,
+			Username:     baseUsername,
 			Email:        supaUser.Email,
 			PasswordHash: nil, // OAuth users don't have a password
 			DisplayName:  displayName,
@@ -88,7 +100,12 @@ func (h *OAuthHandler) Callback(c *gin.Context) {
 			AuthProvider: provider,
 		}
 
-		if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
+		// Two OAuth users can share an email local-part across providers
+		// (e.g. john@gmail.com and john@icloud.com), which collides on the
+		// users.username UNIQUE constraint. Retry with a random suffix until
+		// we land a free username or exhaust the cap.
+		if err := h.createUserWithUniqueUsername(c.Request.Context(), user, baseUsername); err != nil {
+			slog.Error("oauth: failed to create user", "error", err, "email", supaUser.Email)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 			return
 		}
@@ -156,4 +173,53 @@ func extractString(meta map[string]interface{}, key string) *string {
 func generateUsername(email string) string {
 	parts := strings.Split(email, "@")
 	return parts[0]
+}
+
+// createUserWithUniqueUsername inserts the user, retrying with a random hex
+// suffix on username unique-violations. The first attempt uses baseUsername
+// as-is; subsequent attempts append "-xxxx" until the insert succeeds or the
+// retry budget is exhausted. Other errors (including non-username unique
+// violations like the email constraint) are returned immediately.
+func (h *OAuthHandler) createUserWithUniqueUsername(ctx context.Context, user *models.User, baseUsername string) error {
+	for attempt := 0; attempt < maxUsernameRetries; attempt++ {
+		err := h.userRepo.Create(ctx, user)
+		if err == nil {
+			return nil
+		}
+
+		if !isUsernameUniqueViolation(err) {
+			return err
+		}
+
+		suffix, sErr := randomUsernameSuffix()
+		if sErr != nil {
+			return fmt.Errorf("generate username suffix: %w", sErr)
+		}
+		user.Username = baseUsername + "-" + suffix
+	}
+	return fmt.Errorf("could not find a free username after %d attempts", maxUsernameRetries)
+}
+
+// isUsernameUniqueViolation reports whether err is a Postgres unique_violation
+// on the users.username constraint. Other unique violations (e.g. email) are
+// reported as false so callers don't retry them.
+func isUsernameUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != pgUniqueViolation {
+		return false
+	}
+	// Inline UNIQUE on users.username defaults to constraint name
+	// "users_username_key"; the Contains check keeps this resilient to a
+	// future rename of the constraint.
+	return pgErr.ConstraintName == "users_username_key" ||
+		strings.Contains(pgErr.ConstraintName, "username")
+}
+
+// randomUsernameSuffix returns 4 lowercase hex characters from crypto/rand.
+func randomUsernameSuffix() (string, error) {
+	b := make([]byte, 2)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

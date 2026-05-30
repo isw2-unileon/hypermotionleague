@@ -23,7 +23,11 @@ var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 func main() {
 	ctx := context.Background()
 
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	// Initialize database connection
 	pool, err := db.NewPool(ctx, cfg.DB)
@@ -44,7 +48,7 @@ func main() {
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
 	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
-	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League)
+	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -97,6 +101,7 @@ func main() {
 		protected.GET("/leagues/:id/standings", matchdayHandler.GetStandings)
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
+		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
 		// Team
 		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 

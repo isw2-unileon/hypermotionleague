@@ -195,14 +195,14 @@ func (h *LeagueHandler) GetMembers(c *gin.Context) {
 		return
 	}
 
-	members, err := h.repo.GetMembers(c.Request.Context(), id)
+	members, err := h.repo.GetMembersWithUsers(c.Request.Context(), id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener miembros"})
 		return
 	}
 
 	if members == nil {
-		members = []models.LeagueMember{}
+		members = []models.LeagueMemberWithUser{}
 	}
 
 	c.JSON(http.StatusOK, members)

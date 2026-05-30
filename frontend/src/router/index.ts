@@ -37,10 +37,15 @@ const router = createRouter({
       name: "league-detail",
       component: () => import("@/views/LeagueDetailPage.vue"),
     },
-    {
-      path: "/standings",
+    { path: "/standings", 
       name: "standings",
-      component: () => import("@/views/StandingsPage.vue"),
+      component: () => import("@/views/StandingsPage.vue") 
+    },
+   
+    {
+      path: "/squad/:leagueId/:userId",
+      name: "user-squad",
+      component: () => import("@/views/UserSquadPage.vue"),
     },
     {
       path: "/team",
@@ -61,17 +66,44 @@ const router = createRouter({
       path: "/:pathMatch(.*)*",
       redirect: "/leagues",
     },
+   
   ],
 });
 
+// Best-effort client-side check of the JWT `exp` claim. Not a security
+// verification — the backend still verifies the signature on every request.
+// The goal is to avoid sending obviously-expired tokens and to redirect the
+// user to /auth without waiting for a 401.
+function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  const payloadStr = parts[1];
+  if (!payloadStr) return false;
+  try {
+    const payload = JSON.parse(atob(payloadStr)) as { exp?: number };
+    return typeof payload.exp === "number"
+      && payload.exp > Date.now() / 1000;
+  } catch {
+    return false;
+  }
+}
+
 router.beforeEach((to) => {
   const token = localStorage.getItem("token");
+  const valid = isTokenValid(token);
 
-  if (!to.meta.public && !token) {
+  // Expired or malformed token: clear it so subsequent requests don't carry
+  // a stale credential, then treat the user as unauthenticated.
+  if (token && !valid) {
+    localStorage.removeItem("token");
+  }
+
+  if (!to.meta.public && !valid) {
     return "/auth";
   }
 
-  if (to.path === "/auth" && token) {
+  if (to.path === "/auth" && valid) {
     return "/leagues";
   }
 });

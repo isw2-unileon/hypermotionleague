@@ -40,6 +40,16 @@ type LeagueWithMembers struct {
 	Members []LeagueMember `json:"members"`
 }
 
+// LeagueMemberWithUser enriches a LeagueMember with the associated user's
+// display info, so clients can render real names/avatars without an extra
+// round-trip per member.
+type LeagueMemberWithUser struct {
+	LeagueMember
+	Username    string  `json:"username"`
+	DisplayName string  `json:"display_name"`
+	AvatarURL   *string `json:"avatar_url,omitempty"`
+}
+
 // CreateLeagueRequest is the payload for creating a league.
 type CreateLeagueRequest struct {
 	Name            string `json:"name"           binding:"required,min=1,max=100"`

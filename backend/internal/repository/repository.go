@@ -39,6 +39,7 @@ type LeagueRepository interface {
 	// Member operations
 	AddMember(ctx context.Context, member *models.LeagueMember) error
 	GetMembers(ctx context.Context, leagueID int64) ([]models.LeagueMember, error)
+	GetMembersWithUsers(ctx context.Context, leagueID int64) ([]models.LeagueMemberWithUser, error)
 	GetMember(ctx context.Context, leagueID, userID int64) (*models.LeagueMember, error)
 	UpdateMemberBudget(ctx context.Context, leagueID, userID int64, budget int) error
 	RemoveMember(ctx context.Context, leagueID, userID int64) error
@@ -82,6 +83,7 @@ type MatchdayRepository interface {
 	// Lineup operations
 	CreateLineup(ctx context.Context, lineup *models.Lineup) error
 	GetLineup(ctx context.Context, leagueID, userID, matchdayID int64) (*models.LineupWithPlayers, error)
+	ReplaceLineupPlayers(ctx context.Context, lineupID int64, players []models.LineupPlayer) error
 	UpsertLineupPlayer(ctx context.Context, lp *models.LineupPlayer) error
 	RemoveLineupPlayer(ctx context.Context, lineupID, playerID int64) error
 	UpdateLineupPoints(ctx context.Context, lineupID int64, totalPoints int) error

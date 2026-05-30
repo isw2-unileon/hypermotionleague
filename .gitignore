@@ -32,9 +32,14 @@ dist/
 # OS
 .DS_Store
 Thumbs.db
+.claude
 
 # Test
 coverage/
 playwright-report/
 test-results/
 .env
+
+# UI
+frontend/design-prototypes
+frontend/prototypes

@@ -17,9 +17,28 @@ on:
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
 
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-test-secret-not-real
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hypermotion_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +53,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.9.0
+          version: v2.9
 
       - name: Test
         run: go test -v -race ./...
