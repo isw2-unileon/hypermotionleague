@@ -279,7 +279,7 @@ function playersByPosition(pos: PlayerPosition): TeamPlayer[] {
 }
 
 function formationSlots(pos: PlayerPosition): number {
-  return FORMATIONS[formation.value][pos] ?? 0;
+  return FORMATIONS[formation.value]?.[pos] ?? 0;
 }
 
 function slotsFilled(pos: PlayerPosition): number {
@@ -302,7 +302,7 @@ const isLineupValid = computed(() => {
 function selectFormation(f: string) {
   formation.value = f;
   for (const pos of POSITIONS) {
-    const max = FORMATIONS[f][pos];
+    const max = FORMATIONS[f]?.[pos] ?? 0;
     const starters = playersByPosition(pos).filter(p => starterMap.value[p.player_id]);
     starters.slice(max).forEach(p => {
       starterMap.value[p.player_id] = false;
