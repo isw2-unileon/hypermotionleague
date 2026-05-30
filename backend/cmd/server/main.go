@@ -44,15 +44,7 @@ func main() {
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
 	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
-<<<<<<< Updated upstream
-
-	// ---> NEW: Initialize the MarketHandler (Developer 4) <---
-	// Note: We inject Market, Player, and Team repos here for the validations.
-	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team)
-
-=======
 	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League)
->>>>>>> Stashed changes
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()

@@ -101,6 +101,7 @@ type MarketRepository interface {
 
 	// Bid operations
 	PlaceBid(ctx context.Context, bid *models.Bid) error
+	PlaceBidTx(ctx context.Context, leagueID int64, bid *models.Bid) error
 	GetBidsByListing(ctx context.Context, listingID int64) ([]models.Bid, error)
 	GetHighestBid(ctx context.Context, listingID int64) (*models.Bid, error)
 	GetUserActiveBids(ctx context.Context, userID int64) ([]models.BidWithDetails, error)

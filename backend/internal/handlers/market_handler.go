@@ -28,12 +28,6 @@ func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.Play
 	}
 }
 
-// BidRequest defines the expected JSON structure from the frontend.
-type BidRequest struct {
-	ListingID int64   `json:"listing_id"`
-	Amount    float64 `json:"amount"`
-}
-
 // requireMember is a private helper that checks if a user is a member of the league
 func (h *MarketHandler) requireMember(c *gin.Context, leagueID, userID int64) bool {
 	member, err := h.leagueRepo.GetMember(c.Request.Context(), leagueID, userID)
@@ -104,7 +98,7 @@ func (h *MarketHandler) GetActiveListings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": listings})
 }
 
-// 3. PlaceBid - Validates and registers a new bid.
+// 3. PlaceBid - Validates and registers a new bid atomically.
 func (h *MarketHandler) PlaceBid(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {
@@ -118,25 +112,19 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		return
 	}
 
-	// Security Check: User must be a member of the league
 	if !h.requireMember(c, leagueID, userID) {
 		return
 	}
 
-	var req BidRequest
+	var req models.PlaceBidRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
-	if req.Amount <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Bid amount must be greater than 0"})
-		return
-	}
-
 	ctx := c.Request.Context()
 
-	// --- NEW: Security Listing Validations ---
+	// --- Security Listing Validations ---
 	listing, err := h.marketRepo.GetListingByID(ctx, req.ListingID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve listing"})
@@ -154,41 +142,27 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Listing has expired"})
 		return
 	}
-	// -----------------------------------------
 
-	activeBids, err := h.marketRepo.CountUserActiveBids(ctx, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check your active bids"})
-		return
-	}
-	if activeBids >= 5 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum limit of 5 active bids reached"})
-		return
-	}
-
-	userTeam, err := h.teamRepo.GetUserTeam(ctx, leagueID, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user budget"})
-		return
-	}
-	if userTeam == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "User team not found in this league"})
-		return
-	}
-	if int(req.Amount) > userTeam.Budget {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient budget to place this bid"})
-		return
-	}
-
+	// --- ATOMIC TRANSACTION ---
+	// Create the bid model
 	bid := &models.Bid{
 		ListingID: req.ListingID,
 		UserID:    userID,
-		Amount:    int(req.Amount),
+		Amount:    req.Amount,
 		Status:    "active",
 	}
 
-	if err := h.marketRepo.PlaceBid(ctx, bid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to place the bid"})
+	// Execute transaction (Validates Max Bids and Commited Budget with a DB Lock)
+	if err := h.marketRepo.PlaceBidTx(ctx, leagueID, bid); err != nil {
+		if err.Error() == "MAX_BIDS_REACHED" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Maximum limit of 5 active bids reached"})
+			return
+		}
+		if err.Error() == "INSUFFICIENT_BUDGET" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient budget to place this bid (including committed funds)"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to place the bid securely"})
 		return
 	}
 
