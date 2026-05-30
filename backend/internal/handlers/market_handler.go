@@ -188,7 +188,7 @@ func (h *MarketHandler) GetUserBids(c *gin.Context) {
 		return
 	}
 
-	bids, err := h.marketRepo.GetUserActiveBids(c.Request.Context(), userID)
+	bids, err := h.marketRepo.GetUserActiveBids(c.Request.Context(), leagueID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve your bids"})
 		return

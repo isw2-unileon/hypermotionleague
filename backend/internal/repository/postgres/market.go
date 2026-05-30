@@ -214,8 +214,8 @@ func (r *MarketRepo) GetHighestBid(ctx context.Context, listingID int64) (*model
 	return bid, nil
 }
 
-// GetUserActiveBids retrieves all active bids for a user with details.
-func (r *MarketRepo) GetUserActiveBids(ctx context.Context, userID int64) ([]models.BidWithDetails, error) {
+// GetUserActiveBids retrieves all active bids for a user within a specific league.
+func (r *MarketRepo) GetUserActiveBids(ctx context.Context, leagueID, userID int64) ([]models.BidWithDetails, error) {
 	query := `
 		SELECT b.id, b.listing_id, b.user_id, b.amount, b.status, b.placed_at,
 		       ml.id, ml.league_id, ml.player_id, ml.base_price, ml.seller_id,
@@ -225,10 +225,10 @@ func (r *MarketRepo) GetUserActiveBids(ctx context.Context, userID int64) ([]mod
 		FROM bids b
 		INNER JOIN market_listings ml ON b.listing_id = ml.id
 		INNER JOIN players p ON ml.player_id = p.id
-		WHERE b.user_id = $1 AND b.status = 'active'
+		WHERE ml.league_id = $1 AND b.user_id = $2 AND b.status = 'active'
 		ORDER BY b.placed_at DESC`
 
-	rows, err := r.pool.Query(ctx, query, userID)
+	rows, err := r.pool.Query(ctx, query, leagueID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user active bids: %w", err)
 	}
