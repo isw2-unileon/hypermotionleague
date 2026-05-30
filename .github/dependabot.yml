@@ -29,6 +29,12 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+      # vue-router >= 5.1.0 requires a vite ^7 || ^8 peer, but vite is held at
+      # ^6 on purpose. Hold vue-router on the vite-6-compatible 5.0.x line
+      # (patches still flow); unblock this when we do the deliberate vite 6->8
+      # upgrade.
+      - dependency-name: "vue-router"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # E2E npm. Same policy as frontend: hold majors (e.g. typescript 6), batch the rest.
   - package-ecosystem: npm
