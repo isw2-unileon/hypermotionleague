@@ -305,3 +305,65 @@ func (r *MarketRepo) GetMarketStatus(ctx context.Context, leagueID, userID int64
 
 	return status, nil
 }
+
+// PlaceBidTx inserts a new bid inside a transaction, serializing concurrent requests
+// and properly calculating the committed budget to prevent overdrafts.
+func (r *MarketRepo) PlaceBidTx(ctx context.Context, leagueID int64, bid *models.Bid) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	// Si algo falla a mitad de camino, revierte todo (rollback)
+	defer tx.Rollback(ctx)
+
+	// 1. Bloqueo de concurrencia: SELECT FOR UPDATE
+	// Congelamos la fila de este usuario en esta liga para que ninguna otra puja concurrente la lea
+	var budget int
+	err = tx.QueryRow(ctx, `
+		SELECT budget FROM league_members 
+		WHERE league_id = $1 AND user_id = $2 
+		FOR UPDATE
+	`, leagueID, bid.UserID).Scan(&budget)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errors.New("user is not a member of this league")
+		}
+		return fmt.Errorf("lock member row: %w", err)
+	}
+
+	// 2. Contar pujas activas y sumar el dinero comprometido de forma atómica
+	var activeBidsCount int
+	var committedBudget int
+	err = tx.QueryRow(ctx, `
+		SELECT COUNT(*), COALESCE(SUM(b.amount), 0)
+		FROM bids b
+		JOIN market_listings ml ON b.listing_id = ml.id
+		WHERE b.user_id = $1 AND ml.league_id = $2 AND b.status = 'active'
+	`, bid.UserID, leagueID).Scan(&activeBidsCount, &committedBudget)
+	if err != nil {
+		return fmt.Errorf("calculate committed budget: %w", err)
+	}
+
+	// 3. Validaciones de negocio dentro de la transacción
+	if activeBidsCount >= 5 {
+		return errors.New("MAX_BIDS_REACHED")
+	}
+
+	if committedBudget+bid.Amount > budget {
+		return errors.New("INSUFFICIENT_BUDGET")
+	}
+
+	// 4. Si todo es correcto, guardamos la puja
+	query := `
+		INSERT INTO bids (listing_id, user_id, amount, status)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, placed_at`
+
+	err = tx.QueryRow(ctx, query, bid.ListingID, bid.UserID, bid.Amount, bid.Status).Scan(&bid.ID, &bid.PlacedAt)
+	if err != nil {
+		return fmt.Errorf("insert bid: %w", err)
+	}
+
+	// 5. Confirmar transacción
+	return tx.Commit(ctx)
+}
