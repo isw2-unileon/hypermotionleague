@@ -131,7 +131,7 @@ func (r *TeamRepo) TransferPlayer(ctx context.Context, leagueID, oldUserID, newU
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Remove from old user
 	if _, err := tx.Exec(ctx,

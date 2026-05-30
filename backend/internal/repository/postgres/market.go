@@ -314,7 +314,7 @@ func (r *MarketRepo) PlaceBidTx(ctx context.Context, leagueID int64, bid *models
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	// Si algo falla a mitad de camino, revierte todo (rollback)
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// 1. Bloqueo de concurrencia: SELECT FOR UPDATE
 	// Congelamos la fila de este usuario en esta liga para que ninguna otra puja concurrente la lea

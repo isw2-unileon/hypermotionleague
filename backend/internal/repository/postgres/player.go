@@ -69,7 +69,6 @@ func (r *PlayerRepo) List(ctx context.Context, position *models.PlayerPosition, 
 	if teamName != nil {
 		conditions = append(conditions, fmt.Sprintf("team_name = $%d", argIdx))
 		args = append(args, *teamName)
-		argIdx++
 	}
 
 	query := `SELECT id, first_name, last_name, position, team_name, market_value, is_active, created_at, updated_at FROM players`

@@ -66,7 +66,7 @@ func main() {
 
 	// GET /api/db-test checks if the database connection is alive
 	api.GET("/db-test", func(c *gin.Context) {
-		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
+		if err := pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 			return
