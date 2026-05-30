@@ -2,13 +2,6 @@ name: E2E
 
 on:
   pull_request:
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "e2e/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/e2e.yml"
   push:
     branches: [main]
   workflow_dispatch:
@@ -19,6 +12,7 @@ concurrency:
 
 jobs:
   e2e:
+    name: E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
