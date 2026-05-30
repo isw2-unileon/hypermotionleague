@@ -142,15 +142,22 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		return
 	}
 
-	// validate that there are exactly 11 starters
+	// validate formation: exactly 11 starters with 1 GK, 3-5 DEF, 3-5 MID, 1-3 FWD
+	byPos := map[models.PlayerPosition]int{}
 	starters := 0
 	for _, p := range req.Players {
 		if p.IsStarter {
 			starters++
+			byPos[p.Position]++
 		}
 	}
 	if starters != 11 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "La alineación debe tener exactamente 11 titulares"})
+		return
+	}
+	gk, def, mid, fwd := byPos[models.PositionGK], byPos[models.PositionDEF], byPos[models.PositionMID], byPos[models.PositionFWD]
+	if gk != 1 || def < 3 || def > 5 || mid < 3 || mid > 5 || fwd < 1 || fwd > 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formación inválida: se requiere 1 GK, 3-5 DEF, 3-5 MID, 1-3 FWD"})
 		return
 	}
 
