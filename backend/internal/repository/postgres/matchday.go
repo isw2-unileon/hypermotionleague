@@ -190,7 +190,7 @@ func (r *MatchdayRepo) ReplaceLineupPlayers(ctx context.Context, lineupID int64,
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if _, err := tx.Exec(ctx, `DELETE FROM lineup_players WHERE lineup_id = $1`, lineupID); err != nil {
 		return fmt.Errorf("delete lineup players: %w", err)
