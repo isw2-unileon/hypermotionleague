@@ -9,8 +9,7 @@
        { players: [{ playerId, positionSlot, isStarter }] }
        The backend uses ReplaceLineupPlayers (Sprint 1.6 task 3.1)
        so saves are atomic and stale players are dropped.
-  3. Deadline: bind countdown to matchday.startDate from
-       GET /api/v1/leagues/:id/current-matchday
+  3. [DONE] Deadline: live countdown wired to currentMatchday.start_date via setInterval
   4. Substitution modal: list bench players from the same lineup
        response and emit position swaps.
 -->
@@ -28,8 +27,7 @@
             {{ selectedLeagueName || 'Mi Equipo' }}
           </h1>
         </div>
-        <!-- TODO Sprint 2 (Dev 3): replace static string with live countdown to currentMatchday.start_date -->
-        <span class="tag tag-lime tnum">CIERRA EN 04:18:42</span>
+        <span class="tag tag-lime tnum">CIERRA EN {{ countdown }}</span>
       </div>
 
       <!-- ── League selector ── -->
@@ -229,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
 import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
@@ -318,6 +316,8 @@ const loading = ref(false);
 const error = ref('');
 const formation = ref('4-3-3');
 const hasEdits = ref(false); // TODO Sprint 2 (Dev 3): set true on any slot change
+const countdown = ref('--:--:--');
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
 const subModal = reactive<{
   open: boolean;
@@ -389,6 +389,34 @@ function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
       player: p.player,
     }));
 }
+
+// ── Countdown ──────────────────────────────────────────────────────────────
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function startCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  if (!currentMatchday.value) { countdown.value = '--:--:--'; return; }
+  const deadline = new Date(currentMatchday.value.start_date).getTime();
+  const tick = () => {
+    const remaining = deadline - Date.now();
+    countdown.value = formatCountdown(remaining);
+    if (remaining <= 0 && countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+watch(currentMatchday, () => startCountdown());
+
+onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
 
 // ── Actions ────────────────────────────────────────────────────────────────
 
