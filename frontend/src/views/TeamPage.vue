@@ -222,8 +222,9 @@ function goToLineup() {
 onMounted(async () => {
   try {
     leagues.value = await api.get<League[]>('/api/v1/leagues');
-    if (leagues.value.length === 1) {
-      selectedLeagueId.value = leagues.value[0].id;
+    const onlyLeague = leagues.value.length === 1 ? leagues.value[0] : undefined;
+    if (onlyLeague) {
+      selectedLeagueId.value = onlyLeague.id;
       await onLeagueChange();
     }
   } catch {

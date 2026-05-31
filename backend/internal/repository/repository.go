@@ -83,6 +83,7 @@ type MatchdayRepository interface {
 	// Lineup operations
 	CreateLineup(ctx context.Context, lineup *models.Lineup) error
 	GetLineup(ctx context.Context, leagueID, userID, matchdayID int64) (*models.LineupWithPlayers, error)
+	ReplaceLineupPlayers(ctx context.Context, lineupID int64, players []models.LineupPlayer) error
 	UpsertLineupPlayer(ctx context.Context, lp *models.LineupPlayer) error
 	RemoveLineupPlayer(ctx context.Context, lineupID, playerID int64) error
 	UpdateLineupPoints(ctx context.Context, lineupID int64, totalPoints int) error
@@ -102,9 +103,10 @@ type MarketRepository interface {
 
 	// Bid operations
 	PlaceBid(ctx context.Context, bid *models.Bid) error
+	PlaceBidTx(ctx context.Context, leagueID int64, bid *models.Bid) error
 	GetBidsByListing(ctx context.Context, listingID int64) ([]models.Bid, error)
 	GetHighestBid(ctx context.Context, listingID int64) (*models.Bid, error)
-	GetUserActiveBids(ctx context.Context, userID int64) ([]models.BidWithDetails, error)
+	GetUserActiveBids(ctx context.Context, leagueID, userID int64) ([]models.BidWithDetails, error)
 	CountUserActiveBids(ctx context.Context, userID int64) (int, error)
 	UpdateBidStatus(ctx context.Context, id int64, status models.BidStatus) error
 	CancelBid(ctx context.Context, bidID, userID int64) error

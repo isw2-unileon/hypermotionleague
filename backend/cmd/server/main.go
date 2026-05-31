@@ -47,6 +47,8 @@ func main() {
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
+	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
+	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -64,7 +66,7 @@ func main() {
 
 	// GET /api/db-test checks if the database connection is alive
 	api.GET("/db-test", func(c *gin.Context) {
-		if err := pool.Pool.Ping(c.Request.Context()); err != nil {
+		if err := pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 			return

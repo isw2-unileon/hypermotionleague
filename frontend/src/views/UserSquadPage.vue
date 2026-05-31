@@ -211,16 +211,18 @@ function positionClass(position: string): string {
 
 onMounted(async () => {
   await Promise.all([fetchUserName(), fetchMatchdays()]);
-  if (matchdays.value.length > 0) {
-    selectedMatchdayNumber.value = matchdays.value[0].number;
+  const firstMatchday = matchdays.value[0];
+  if (firstMatchday) {
+    selectedMatchdayNumber.value = firstMatchday.number;
     await fetchUserStanding();
   }
 });
 
 watch(leagueId, async () => {
   await Promise.all([fetchUserName(), fetchMatchdays()]);
-  if (matchdays.value.length > 0) {
-    selectedMatchdayNumber.value = matchdays.value[0].number;
+  const firstMatchday = matchdays.value[0];
+  if (firstMatchday) {
+    selectedMatchdayNumber.value = firstMatchday.number;
     await fetchUserStanding();
   }
 });

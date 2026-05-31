@@ -1,18 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import AuthPage from "@/views/AuthPage.vue";
 
-const PlaceholderPage = {
-  template: `
-    <div class="flex items-center justify-center h-full p-8">
-      <div class="text-center">
-        <p class="text-4xl mb-4">🚧</p>
-        <h2 class="text-xl font-bold text-white mb-2">Próximamente</h2>
-        <p class="text-green-300/60 text-sm">Esta sección está en desarrollo</p>
-      </div>
-    </div>
-  `,
-};
-
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -60,7 +48,7 @@ const router = createRouter({
     {
       path: "/market",
       name: "market",
-      component: PlaceholderPage,
+      component: () => import("@/views/MarketPage.vue"),
     },
     {
       path: "/:pathMatch(.*)*",
@@ -76,9 +64,14 @@ const router = createRouter({
 // user to /auth without waiting for a 401.
 function isTokenValid(token: string | null): boolean {
   if (!token) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  const payloadStr = parts[1];
+  if (!payloadStr) return false;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    return typeof payload.exp === "number" && payload.exp > Date.now() / 1000;
+    const payload = JSON.parse(atob(payloadStr)) as { exp?: number };
+    return typeof payload.exp === "number"
+      && payload.exp > Date.now() / 1000;
   } catch {
     return false;
   }

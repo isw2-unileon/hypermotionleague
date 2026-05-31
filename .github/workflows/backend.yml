@@ -10,19 +10,14 @@ on:
       - ".golangci.yml"
       - ".github/workflows/backend.yml"
   pull_request:
-    paths:
-      - "backend/**"
-      - "go.mod"
-      - "go.sum"
-      - ".golangci.yml"
-      - ".github/workflows/backend.yml"
 
 concurrency:
   group: backend-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  backend:
+    name: Backend
     runs-on: ubuntu-latest
     env:
       JWT_SECRET: ci-test-secret-not-real

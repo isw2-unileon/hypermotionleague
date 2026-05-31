@@ -1,65 +1,66 @@
+<template>
+  <!--
+    PlayerPhoto — "silhouette card with team tag" (F3.2 primitive).
+    primitives.jsx was never committed, so this is reconstructed from the brief's
+    description and its usage in Mercado.jsx: a rounded card tinted by the team
+    color, a generic player silhouette, and the short team code tagged at the
+    bottom. The backend has no player photos, so the silhouette is intentional.
+  -->
+  <div class="player-photo" :style="rootStyle">
+    <svg class="silhouette" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="32" cy="23" r="11" fill="rgba(0,0,0,0.28)" />
+      <path d="M11 62 C11 45 21 39 32 39 C43 39 53 45 53 62 Z" fill="rgba(0,0,0,0.28)" />
+    </svg>
+    <span class="team-tag mono">{{ team }}</span>
+  </div>
+</template>
+
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed } from "vue";
 
 interface Props {
-  team: string
-  color: string
-  size?: number
+  team: string; // short team code, e.g. "LIV"
+  color: string; // team accent color (any CSS color)
+  size?: number;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  size: 56,
-})
+  size: 64,
+});
 
 const rootStyle = computed(() => ({
   width: `${props.size}px`,
   height: `${props.size}px`,
-  background: `linear-gradient(160deg, ${props.color}33, var(--ink-700))`,
-}))
-
-const svgStyle = computed(() => ({
-  width: `${props.size}px`,
-  height: `${props.size}px`,
-}))
+  background: `linear-gradient(165deg, ${props.color}, var(--ink-800))`,
+}));
 </script>
-
-<template>
-  <div class="player-photo" :style="rootStyle">
-    <svg
-      class="player-photo__silhouette"
-      :style="svgStyle"
-      viewBox="0 0 56 56"
-      aria-hidden="true"
-    >
-      <circle cx="28" cy="20" r="9" fill="rgba(255,255,255,0.25)" />
-      <path d="M10 56 Q10 38 28 38 Q46 38 46 56 Z" fill="rgba(255,255,255,0.2)" />
-    </svg>
-    <div class="player-photo__tag">{{ team }}</div>
-  </div>
-</template>
 
 <style scoped>
 .player-photo {
-  border-radius: 8px;
-  border: 1px solid var(--ink-600);
   position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   flex-shrink: 0;
+  border-radius: var(--r-md);
+  border: 1px solid var(--ink-700);
+  overflow: hidden;
 }
-.player-photo__silhouette {
+
+.silhouette {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.team-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
   bottom: 0;
-}
-.player-photo__tag {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  font-family: var(--f-mono);
+  text-align: center;
   font-size: 8px;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.12em;
+  padding: 2px 0;
+  color: var(--ink-100);
+  background: rgba(8, 9, 11, 0.55);
 }
 </style>
