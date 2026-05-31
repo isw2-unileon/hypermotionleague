@@ -2,8 +2,8 @@
   SPRINT 2 WIRING — DEV 3
   =======================
   This page is a STATIC SHELL. To wire it:
-  1. Fetch current lineup:
-       GET /api/v1/leagues/:id/lineups/me  (current matchday)
+  1. [DONE] Fetch current lineup:
+       GET /api/v1/leagues/:id/matchdays/:number/lineup
   2. Save lineup:
        PUT /api/v1/leagues/:id/lineups/me  with body
        { players: [{ playerId, positionSlot, isStarter }] }
@@ -22,14 +22,13 @@
         <div>
           <span class="meta-strip">
             <span class="meta-dot"></span>
-            MI EQUIPO · J·32
+            MI EQUIPO · J·{{ currentMatchday?.number ?? '—' }}
           </span>
           <h1 class="display uc equipo-title">
             {{ selectedLeagueName || 'Mi Equipo' }}
           </h1>
         </div>
-        <!-- TODO Sprint 2 (Dev 3): bind countdown to matchday.startDate from
-             GET /api/v1/leagues/:id/current-matchday -->
+        <!-- TODO Sprint 2 (Dev 3): replace static string with live countdown to currentMatchday.start_date -->
         <span class="tag tag-lime tnum">CIERRA EN 04:18:42</span>
       </div>
 
@@ -62,12 +61,12 @@
       <div v-else-if="!selectedLeagueId" class="state-msg mono">
         Selecciona una liga para ver tu equipo
       </div>
-      <div v-else-if="team && team.players.length === 0" class="state-msg mono">
+      <div v-else-if="squadPlayers.length === 0" class="state-msg mono">
         Tu plantilla está vacía — ve al mercado
       </div>
 
       <!-- ── Pitch ── -->
-      <div v-else-if="team" class="pitch-wrap">
+      <div v-else-if="squadPlayers.length > 0" class="pitch-wrap">
         <div class="pitch-container">
           <PitchSVG />
 
@@ -245,6 +244,15 @@ interface League {
   name: string;
 }
 
+interface Matchday {
+  id: number;
+  number: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+}
+
 interface Player {
   id: number;
   first_name: string;
@@ -254,6 +262,26 @@ interface Player {
   market_value: number;
 }
 
+interface LineupPlayer {
+  id: number;
+  lineup_id: number;
+  player_id: number;
+  position: PlayerPosition;
+  is_starter: boolean;
+  points: number;
+  player: Player;
+}
+
+interface LineupWithPlayers {
+  id: number;
+  league_id: number;
+  user_id: number;
+  matchday_id: number;
+  total_points: number;
+  players: LineupPlayer[];
+}
+
+// Kept for squad fetch (bench source when building a new lineup from scratch)
 interface TeamPlayerWithDetails {
   id: number;
   player_id: number;
@@ -283,7 +311,9 @@ const formationKeys = Object.keys(FORMATIONS);
 
 const leagues = ref<League[]>([]);
 const selectedLeagueId = ref<number | ''>('');
-const team = ref<UserTeam | null>(null);
+const currentMatchday = ref<Matchday | null>(null);
+const lineup = ref<LineupWithPlayers | null>(null);
+const squadPlayers = ref<TeamPlayerWithDetails[]>([]);
 const loading = ref(false);
 const error = ref('');
 const formation = ref('4-3-3');
@@ -293,7 +323,7 @@ const subModal = reactive<{
   open: boolean;
   position: PlayerPosition;
   index: number;
-  current: TeamPlayerWithDetails | null;
+  current: LineupPlayer | null;
 }>({ open: false, position: 'FWD', index: 0, current: null });
 
 // ── Derived ────────────────────────────────────────────────────────────────
@@ -303,10 +333,10 @@ const selectedLeagueName = computed(
 );
 
 const slottedPlayers = computed(() => {
-  const config = FORMATIONS[formation.value];
-  const take = (pos: PlayerPosition, n: number): (TeamPlayerWithDetails | null)[] => {
-    const pool = team.value?.players.filter(p => p.player.position === pos) ?? [];
-    return Array.from({ length: n }, (_, i) => pool[i] ?? null);
+  const config = FORMATIONS[formation.value] ?? { gk: 1, def: 4, mid: 3, fwd: 3 };
+  const take = (pos: PlayerPosition, n: number): (LineupPlayer | null)[] => {
+    const starters = lineup.value?.players.filter(p => p.is_starter && p.position === pos) ?? [];
+    return Array.from({ length: n }, (_, i) => starters[i] ?? null);
   };
   return {
     gk:  take('GK',  config.gk),
@@ -329,7 +359,7 @@ const TEAM_PALETTE = [
 function teamColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return TEAM_PALETTE[Math.abs(hash) % TEAM_PALETTE.length];
+  return TEAM_PALETTE[Math.abs(hash) % TEAM_PALETTE.length] ?? '#3B82F6';
 }
 
 function posLabel(pos: PlayerPosition): string {
@@ -340,11 +370,24 @@ function posBadgeClass(pos: PlayerPosition): string {
   return { GK: 'pos-gk', DEF: 'pos-def', MID: 'pos-mid', FWD: 'pos-fwd' }[pos];
 }
 
-function benchPlayers(pos: PlayerPosition): TeamPlayerWithDetails[] {
-  if (!team.value) return [];
-  const keyMap = { GK: 'gk', DEF: 'def', MID: 'mid', FWD: 'fwd' } as const;
-  const n = FORMATIONS[formation.value][keyMap[pos]];
-  return team.value.players.filter(p => p.player.position === pos).slice(n);
+function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
+  // Non-starters already in the lineup for this position
+  const nonStarters = lineup.value?.players.filter(p => !p.is_starter && p.position === pos) ?? [];
+  if (nonStarters.length > 0) return nonStarters;
+
+  // Fallback: squad players not present in the lineup at all (new lineup from scratch)
+  const inLineup = new Set(lineup.value?.players.map(p => p.player_id) ?? []);
+  return squadPlayers.value
+    .filter(p => p.player.position === pos && !inLineup.has(p.player_id))
+    .map(p => ({
+      id: 0,
+      lineup_id: 0,
+      player_id: p.player_id,
+      position: pos,
+      is_starter: false,
+      points: 0,
+      player: p.player,
+    }));
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -353,14 +396,14 @@ function selectFormation(f: string) {
   formation.value = f;
 }
 
-function openSubModal(slot: TeamPlayerWithDetails | null, pos: PlayerPosition, idx: number) {
+function openSubModal(slot: LineupPlayer | null, pos: PlayerPosition, idx: number) {
   subModal.open = true;
   subModal.position = pos;
   subModal.index = idx;
   subModal.current = slot;
 }
 
-function selectBenchPlayer(_p: TeamPlayerWithDetails) {
+function selectBenchPlayer(_p: LineupPlayer) {
   // TODO Sprint 2 (Dev 3): swap slot with bench player and set hasEdits = true
   console.log('TODO Sprint 2 (Dev 3): swap slot', subModal.index, 'with', _p.player.last_name);
   subModal.open = false;
@@ -375,11 +418,33 @@ function saveLineup() {
 
 async function onLeagueChange() {
   if (!selectedLeagueId.value) return;
-  team.value = null;
+  lineup.value = null;
+  squadPlayers.value = [];
+  currentMatchday.value = null;
   error.value = '';
   loading.value = true;
   try {
-    team.value = await api.get<UserTeam>(`/api/v1/leagues/${selectedLeagueId.value}/team`);
+    const leagueId = selectedLeagueId.value;
+
+    // 1. Fetch current matchday
+    const matchdaysData = await api.get<{ matchdays: Matchday[] }>(`/api/v1/leagues/${leagueId}/matchdays`);
+    const matchdays = matchdaysData.matchdays ?? [];
+    currentMatchday.value = matchdays.find(m => m.is_current) ?? matchdays[0] ?? null;
+
+    // 2. Fetch squad (needed for bench when building a lineup from scratch)
+    const teamData = await api.get<UserTeam>(`/api/v1/leagues/${leagueId}/team`);
+    squadPlayers.value = teamData.players;
+
+    // 3. Try to fetch existing lineup for current matchday (may not exist yet — 404 is OK)
+    if (currentMatchday.value) {
+      try {
+        lineup.value = await api.get<LineupWithPlayers>(
+          `/api/v1/leagues/${leagueId}/matchdays/${currentMatchday.value.number}/lineup`,
+        );
+      } catch {
+        lineup.value = null; // no lineup saved yet for this matchday
+      }
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar el equipo';
   } finally {
@@ -391,7 +456,7 @@ onMounted(async () => {
   try {
     leagues.value = await api.get<League[]>('/api/v1/leagues');
     if (leagues.value.length === 1) {
-      selectedLeagueId.value = leagues.value[0].id;
+      selectedLeagueId.value = leagues.value[0]!.id;
       await onLeagueChange();
     }
   } catch {
