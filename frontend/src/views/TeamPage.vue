@@ -10,8 +10,8 @@
        The backend uses ReplaceLineupPlayers (Sprint 1.6 task 3.1)
        so saves are atomic and stale players are dropped.
   3. [DONE] Deadline: live countdown wired to currentMatchday.start_date via setInterval
-  4. Substitution modal: list bench players from the same lineup
-       response and emit position swaps.
+  4. [DONE] Substitution modal: selectBenchPlayer swaps slots and sets hasEdits;
+       saveLineup calls PUT /api/v1/leagues/:id/matchdays/:number/lineup atomically.
 -->
 <template>
   <AppLayout>
@@ -165,14 +165,14 @@
 
         <!-- ── Save bar ── -->
         <div class="save-bar">
-          <!-- TODO Sprint 2 (Dev 3): wire to PUT /api/v1/leagues/:id/lineups/me -->
           <button
             class="btn btn-primary save-btn"
-            :disabled="!hasEdits"
+            :disabled="!hasEdits || saving"
             @click="saveLineup"
           >
-            Guardar alineación
+            {{ saving ? 'Guardando…' : 'Guardar alineación' }}
           </button>
+          <p v-if="saveError" class="save-error mono">{{ saveError }}</p>
         </div>
       </div>
 
@@ -315,7 +315,9 @@ const squadPlayers = ref<TeamPlayerWithDetails[]>([]);
 const loading = ref(false);
 const error = ref('');
 const formation = ref('4-3-3');
-const hasEdits = ref(false); // TODO Sprint 2 (Dev 3): set true on any slot change
+const hasEdits = ref(false);
+const saving = ref(false);
+const saveError = ref('');
 const countdown = ref('--:--:--');
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -431,17 +433,62 @@ function openSubModal(slot: LineupPlayer | null, pos: PlayerPosition, idx: numbe
   subModal.current = slot;
 }
 
-function selectBenchPlayer(_p: LineupPlayer) {
-  // TODO Sprint 2 (Dev 3): swap slot with bench player and set hasEdits = true
-  console.log('TODO Sprint 2 (Dev 3): swap slot', subModal.index, 'with', _p.player.last_name);
+function selectBenchPlayer(p: LineupPlayer) {
+  if (!lineup.value) {
+    if (!currentMatchday.value) return;
+    lineup.value = {
+      id: 0,
+      league_id: Number(selectedLeagueId.value) || 0,
+      user_id: 0,
+      matchday_id: currentMatchday.value.id,
+      total_points: 0,
+      players: [],
+    };
+  }
+
+  const players = lineup.value.players;
+
+  // Move current slot occupant to bench
+  if (subModal.current) {
+    const cur = players.find(lp => lp.player_id === subModal.current!.player_id);
+    if (cur) cur.is_starter = false;
+  }
+
+  // Promote incoming player to starter
+  const existing = players.find(lp => lp.player_id === p.player_id);
+  if (existing) {
+    existing.is_starter = true;
+  } else {
+    players.push({ ...p, is_starter: true });
+  }
+
+  hasEdits.value = true;
   subModal.open = false;
 }
 
-function saveLineup() {
-  // TODO Sprint 2 (Dev 3): wire to PUT /api/v1/leagues/:id/lineups/me
-  // Body: { players: [{ playerId, positionSlot, isStarter }] }
-  // Backend uses ReplaceLineupPlayers — atomic, stale players are dropped.
-  console.log('TODO Sprint 2 (Dev 3): save lineup for league', selectedLeagueId.value);
+async function saveLineup() {
+  if (!currentMatchday.value || !selectedLeagueId.value || !hasEdits.value) return;
+  saving.value = true;
+  saveError.value = '';
+  try {
+    const reqPlayers = (lineup.value?.players ?? []).map(p => ({
+      player_id: p.player_id,
+      position: p.position,
+      is_starter: p.is_starter,
+    }));
+    await api.put(
+      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+      { matchday_id: currentMatchday.value.id, players: reqPlayers },
+    );
+    hasEdits.value = false;
+    lineup.value = await api.get<LineupWithPlayers>(
+      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+    );
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : 'Error al guardar la alineación';
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onLeagueChange() {
@@ -643,6 +690,14 @@ onMounted(async () => {
 .save-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+
+.save-error {
+  margin-top: var(--s-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--down);
+  text-align: center;
 }
 
 /* ── Modal overlay ── */
