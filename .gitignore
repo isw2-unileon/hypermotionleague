@@ -19,7 +19,7 @@ dist/
 
 # Environment
 .env
-.env
+.env.txt
 !.env
 
 # IDE
