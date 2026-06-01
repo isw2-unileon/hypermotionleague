@@ -25,7 +25,40 @@
         <div class="countdown-time display tnum">04:18:42</div>
         <div class="countdown-sub">Mercado cierra hoy</div>
       </div>
+
+      <button type="button" class="btn btn-ghost logout-btn" @click="onLogout">
+        <svg
+          class="logout-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M6 14 H3 a1 1 0 0 1 -1 -1 V3 a1 1 0 0 1 1 -1 h3 M10.5 11 L13.5 8 L10.5 5 M13.5 8 H6" />
+        </svg>
+        Cerrar sesión
+      </button>
     </aside>
+
+    <header class="mobile-topbar">
+      <Logo :size="22" />
+      <button type="button" class="btn btn-ghost logout-btn logout-btn-mobile" @click="onLogout">
+        <svg
+          class="logout-icon"
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+        >
+          <path d="M6 14 H3 a1 1 0 0 1 -1 -1 V3 a1 1 0 0 1 1 -1 h3 M10.5 11 L13.5 8 L10.5 5 M13.5 8 H6" />
+        </svg>
+        Salir
+      </button>
+    </header>
 
     <main class="main">
       <slot />
@@ -44,6 +77,7 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
+import { logout } from "@/lib/auth";
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
 
@@ -80,6 +114,10 @@ function onNavClick(item: NavItem): void {
 function onTabSelect(id: NavId): void {
   const item = navItems.find((n) => n.id === id);
   if (item && item.route !== route.path) router.push(item.route);
+}
+
+function onLogout(): void {
+  void logout();
 }
 </script>
 
@@ -193,6 +231,27 @@ function onTabSelect(id: NavId): void {
   display: none;
 }
 
+/* Logout — reuses the .btn / .btn-ghost tokens; only layout is set here.
+   Full width at the bottom of the sidebar, aligned with the nav items. */
+.logout-btn {
+  width: 100%;
+  margin-top: 10px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.logout-icon {
+  flex-shrink: 0;
+}
+
+/* Shell-owned top bar, only used on mobile (sidebar is hidden there). */
+.mobile-topbar {
+  display: none;
+}
+
 @media (max-width: 767px) {
   .app-shell {
     display: flex;
@@ -212,6 +271,25 @@ function onTabSelect(id: NavId): void {
   .mobile-tabbar {
     display: flex;
     flex-shrink: 0;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--ink-850);
+    border-bottom: 1px solid var(--ink-700);
+    flex-shrink: 0;
+  }
+
+  /* Compact variant for the mobile top bar (overrides the sidebar layout). */
+  .logout-btn-mobile {
+    width: auto;
+    margin-top: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    gap: 8px;
   }
 }
 </style>
