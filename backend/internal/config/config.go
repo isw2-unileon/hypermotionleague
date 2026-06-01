@@ -4,19 +4,26 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
+// defaultCORSOrigins is the comma-separated allow-list used when neither
+// CORS_ALLOW_ORIGINS nor CORS_ALLOW_ORIGIN is set: the Vercel production
+// domain, Vercel preview deployments (wildcard), and local dev.
+const defaultCORSOrigins = "https://hypermotionleague.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:3000"
+
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
-	Port            string
-	GinMode         string
-	CORSAllowOrigin string
-	JWTSecret       string
-	SupabaseURL     string
-	SupabaseKey     string
-	DB              DBConfig
+	Port             string
+	GinMode          string
+	CORSAllowOrigin  string   // deprecated single-origin value, kept for compatibility
+	CORSAllowOrigins []string // parsed allow-list actually applied by the CORS middleware
+	JWTSecret        string
+	SupabaseURL      string
+	SupabaseKey      string
+	DB               DBConfig
 }
 
 // DBConfig holds PostgreSQL connection settings.
@@ -53,9 +60,12 @@ func Load() (*Config, error) {
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
 		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
-		JWTSecret:       getEnv("JWT_SECRET", ""),
-		SupabaseURL:     getEnv("SUPABASE_URL", ""),
-		SupabaseKey:     getEnv("SUPABASE_SERVICE_KEY", ""),
+		// Prefer the plural CORS_ALLOW_ORIGINS; fall back to the legacy singular
+		// CORS_ALLOW_ORIGIN; if neither is set, use the built-in default list.
+		CORSAllowOrigins: parseCSV(getEnv("CORS_ALLOW_ORIGINS", getEnv("CORS_ALLOW_ORIGIN", defaultCORSOrigins))),
+		JWTSecret:        getEnv("JWT_SECRET", ""),
+		SupabaseURL:      getEnv("SUPABASE_URL", ""),
+		SupabaseKey:      getEnv("SUPABASE_SERVICE_KEY", ""),
 
 		DB: DBConfig{
 			DSN:      os.Getenv("DATABASE_URL"),
@@ -80,4 +90,16 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseCSV splits a comma-separated string into a trimmed, non-empty slice.
+func parseCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }

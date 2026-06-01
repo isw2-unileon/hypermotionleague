@@ -1,12 +1,16 @@
 <template>
-  <AppLayout>
-    <div class="px-4 pt-6 pb-4">
-      <h1 class="text-xl font-semibold text-white mb-4">Clasificación</h1>
+  <AppShell>
+    <div class="standings">
+      <!-- Header -->
+      <header class="header">
+        <div class="meta mono">◆ CLASIFICACIÓN</div>
+        <h1 class="title display">Clasificación.</h1>
+      </header>
 
       <!-- League selector -->
       <select
         v-model="selectedLeagueId"
-        class="w-full bg-green-950/60 border border-white/10 text-white rounded-lg px-3 py-2 mb-4 text-sm"
+        class="input league-select"
         @change="onLeagueChange"
       >
         <option disabled value="">Selecciona una liga</option>
@@ -15,99 +19,80 @@
         </option>
       </select>
 
-      <!-- Matchday filter -->
-      <select
-        v-if="matchdays.length > 0"
-        v-model="selectedMatchdayNumber"
-        class="w-full bg-green-950/60 border border-white/10 text-white rounded-lg px-3 py-2 mb-4 text-sm"
-        @change="onMatchdayChange"
-      >
-        <option :value="null">General</option>
-        <option v-for="md in matchdays" :key="md.id" :value="md.number">
-          Jornada {{ md.number }} — {{ md.name }}
-        </option>
-      </select>
+      <!-- Matchday filter pills -->
+      <div v-if="matchdays.length > 0" class="pills">
+        <button
+          type="button"
+          class="pill"
+          :class="{ active: selectedMatchdayNumber === null }"
+          @click="selectMatchday(null)"
+        >
+          General
+        </button>
+        <button
+          v-for="md in matchdays"
+          :key="md.id"
+          type="button"
+          class="pill"
+          :class="{ active: selectedMatchdayNumber === md.number }"
+          @click="selectMatchday(md.number)"
+        >
+          J·{{ md.number }}
+        </button>
+      </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="text-center text-green-300/60 py-12 text-sm">
+      <div v-if="loading" class="state state-muted">
         Cargando clasificación...
       </div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center text-red-400 py-12 text-sm">
+      <div v-else-if="error" class="state state-error">
         {{ error }}
       </div>
 
       <!-- Empty state -->
-      <div
-        v-else-if="!selectedLeagueId"
-        class="text-center text-green-300/60 py-12 text-sm"
-      >
+      <div v-else-if="!selectedLeagueId" class="state state-muted">
         Selecciona una liga para ver la clasificación
       </div>
 
-      <!-- Standings table -->
-      <div
-        v-else-if="standings"
-        class="rounded-xl overflow-hidden border border-white/10"
-      >
-        <!-- Header -->
-        <div
-          class="grid grid-cols-12 px-4 py-2 bg-green-950/80 text-green-300/60 text-xs font-semibold uppercase tracking-wide"
-        >
-          <span class="col-span-1">#</span>
-          <span class="col-span-8">Jugador</span>
-          <span class="col-span-3 text-right">Pts</span>
-        </div>
-
-        <!-- Rows -->
-        <div
-          v-for="entry in standings.rankings"
-          :key="entry.user_id"
-          class="grid grid-cols-12 items-center px-4 py-3 border-t border-white/5 cursor-pointer hover:bg-white/5 transition-colors"
-          @click="goToUserSquad(entry.user_id)"
-        >
-          <span
-            class="col-span-1 text-sm font-semibold"
-            :class="
-              entry.rank === 1
-                ? 'text-amber-400'
-                : entry.rank <= 3
-                  ? 'text-green-300'
-                  : 'text-white/50'
-            "
-          >
-            {{ entry.rank }}
-          </span>
-          <div class="col-span-8">
-            <p class="text-sm font-medium text-white">
-              {{ entry.display_name }}
-            </p>
-            <p class="text-xs text-green-300/50">@{{ entry.username }}</p>
-          </div>
-          <span
-            class="col-span-3 text-right text-sm font-semibold text-amber-400"
-          >
-            {{ entry.total_points }}
-          </span>
-        </div>
-
-        <!-- Empty rankings -->
-        <div
-          v-if="standings.rankings.length === 0"
-          class="text-center text-green-300/60 py-8 text-sm border-t border-white/5"
-        >
+      <!-- Standings -->
+      <div v-else-if="standings" class="results">
+        <div v-if="standings.rankings.length === 0" class="state state-muted">
           No hay datos para esta jornada
         </div>
+
+        <template v-else>
+          <Podium
+            v-if="podium.length > 0"
+            :top3="podium"
+            :mobile="isMobile"
+            @click="goToUserSquad"
+          />
+
+          <div class="rows">
+            <StandingsRow
+              v-for="row in restRows"
+              :key="row.userId"
+              :row="row"
+              :mobile="isMobile"
+              @click="goToUserSquad"
+            />
+          </div>
+        </template>
       </div>
     </div>
-  </AppLayout>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import AppLayout from "@/layouts/AppLayout.vue";
+import AppShell from "@/design-system/AppShell.vue";
+import Podium from "@/design-system/components/Podium.vue";
+import StandingsRow from "@/design-system/components/StandingsRow.vue";
+import type { StandingsRow as StandingsRowData } from "@/types/standings";
+import { currentUserId } from "@/lib/auth";
 import api from "@/lib/api";
 
 interface League {
@@ -145,8 +130,59 @@ const selectedLeagueId = ref<number | "">("");
 const selectedMatchdayNumber = ref<number | null>(null);
 const loading = ref(false);
 const error = ref("");
+const isMobile = ref(false);
+
+// Accent color cycled by row index: mid → def → fwd → gk.
+function cycleColor(index: number): string {
+  switch (index % 4) {
+    case 0:
+      return "var(--pos-mid)";
+    case 1:
+      return "var(--pos-def)";
+    case 2:
+      return "var(--pos-fwd)";
+    default:
+      return "var(--pos-gk)";
+  }
+}
+
+function initialsFrom(name: string): string {
+  return name
+    .split(" ")
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
+// Maps the backend rankings onto the design-system StandingsRow shape.
+const standingsRows = computed<StandingsRowData[]>(() => {
+  const rankings = standings.value?.rankings ?? [];
+  const meId = currentUserId();
+  return rankings.map((entry, index) => ({
+    position: entry.rank,
+    userId: entry.user_id,
+    name: entry.display_name,
+    initials: initialsFrom(entry.display_name),
+    squadName: entry.username ?? "",
+    totalPoints: entry.total_points,
+    matchdayPoints: 0, // TODO(Sprint 2): backend doesn't send per-matchday points yet.
+    deltaPosition: 0, // TODO(Sprint 2): backend doesn't send position delta yet.
+    color: cycleColor(index),
+    isCurrentUser: meId !== 0 && entry.user_id === meId,
+  }));
+});
+
+const podium = computed<StandingsRowData[]>(() => standingsRows.value.slice(0, 3));
+const restRows = computed<StandingsRowData[]>(() => standingsRows.value.slice(3));
+
+function updateIsMobile(): void {
+  isMobile.value = window.innerWidth < 768;
+}
 
 onMounted(async () => {
+  updateIsMobile();
+  window.addEventListener("resize", updateIsMobile);
+
   try {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
   } catch {
@@ -173,6 +209,10 @@ onMounted(async () => {
   }
 });
 
+onUnmounted(() => {
+  window.removeEventListener("resize", updateIsMobile);
+});
+
 watch([selectedLeagueId, selectedMatchdayNumber], ([leagueId, matchday]) => {
   const query: Record<string, string> = {};
   if (leagueId !== "") query.leagueId = String(leagueId);
@@ -192,6 +232,13 @@ async function onLeagueChange() {
 
 async function onMatchdayChange() {
   await fetchStandings();
+}
+
+// Pill click → drive the same matchday selection the original <select> did.
+async function selectMatchday(num: number | null): Promise<void> {
+  if (selectedMatchdayNumber.value === num) return;
+  selectedMatchdayNumber.value = num;
+  await onMatchdayChange();
 }
 
 async function fetchMatchdays() {
@@ -228,3 +275,105 @@ function goToUserSquad(userId: number) {
   router.push(`/squad/${selectedLeagueId.value}/${userId}`);
 }
 </script>
+
+<style scoped>
+.standings {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--ink-100);
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.title {
+  font-size: 64px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+/* League select — reuses the global .input token styling */
+.league-select {
+  max-width: 360px;
+  cursor: pointer;
+}
+
+/* Matchday pills */
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  padding: 6px 14px;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-200);
+  border: 1px solid var(--ink-700);
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.pill:hover {
+  border-color: var(--ink-500);
+}
+
+.pill.active {
+  background: var(--lime);
+  color: var(--ink-900);
+  border-color: var(--lime);
+}
+
+/* States */
+.state {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.state-muted {
+  color: var(--ink-400);
+}
+
+.state-error {
+  color: var(--down);
+}
+
+/* Results */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+@media (max-width: 767px) {
+  .title {
+    font-size: 40px;
+  }
+}
+</style>

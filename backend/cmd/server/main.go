@@ -54,6 +54,11 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 
+	// CORS must run before the routes so browser preflight (OPTIONS) requests
+	// are answered with the CORS headers + 204 instead of hitting an undeclared
+	// route and returning 404.
+	r.Use(middleware.CORS(cfg.CORSAllowOrigins))
+
 	// Public routes, no auth required
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

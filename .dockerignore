@@ -1,0 +1,25 @@
+# Build context is the repo root (see backend/Dockerfile). Keep it lean: only
+# go.mod/go.sum and ./backend are needed to build the server.
+.git
+.github
+frontend
+e2e
+docs
+docker-compose.yml
+Makefile
+README.md
+*.md
+
+# Prebuilt local binaries at the repo root (~18MB each) — never needed in the image.
+/main
+/server
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store

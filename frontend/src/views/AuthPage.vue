@@ -231,6 +231,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import type { Subscription } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { BASE_URL } from "@/lib/api";
 import Logo from "@/design-system/primitives/Logo.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import StatusBar from "@/design-system/primitives/StatusBar.vue";
@@ -291,7 +292,7 @@ async function handleLogin(): Promise<void> {
   clearError();
   loading.value = true;
   try {
-    const res = await fetch("/api/v1/auth/login", {
+    const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(loginForm),
@@ -314,7 +315,7 @@ async function handleRegister(): Promise<void> {
   clearError();
   loading.value = true;
   try {
-    const res = await fetch("/api/v1/auth/register", {
+    const res = await fetch(`${BASE_URL}/api/v1/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(registerForm),
@@ -342,7 +343,7 @@ async function handleOAuthCallback(accessToken: string): Promise<void> {
   loading.value = true;
   clearError();
   try {
-    const res = await fetch("/api/v1/auth/oauth", {
+    const res = await fetch(`${BASE_URL}/api/v1/auth/oauth`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ access_token: accessToken }),
