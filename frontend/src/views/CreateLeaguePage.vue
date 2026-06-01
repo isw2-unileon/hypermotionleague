@@ -1,83 +1,92 @@
 <template>
-  <AppLayout>
-    <div class="p-4 max-w-lg mx-auto">
+  <AppShell>
+    <div class="create">
+      <!-- Back -->
+      <button type="button" class="back mono" @click="router.push('/leagues')">
+        ← Mis Ligas
+      </button>
+
       <!-- Header -->
-      <div class="flex items-center gap-3 mb-6">
-        <button @click="router.back()" class="text-green-300/60 hover:text-white transition-colors">
-          ← Volver
-        </button>
-        <h1 class="text-2xl font-bold text-white">Crear Liga</h1>
-      </div>
+      <header class="header">
+        <div class="meta meta-lime mono">◆ NUEVA LIGA</div>
+        <h1 class="title display">CREAR LIGA.</h1>
+      </header>
 
-      <div v-if="error" class="mb-4 p-3 bg-red-500/20 border border-red-400/30 rounded-lg text-red-200 text-sm">
-        {{ error }}
-      </div>
+      <!-- Error -->
+      <div v-if="error" class="state state-error">{{ error }}</div>
 
-      <form @submit.prevent="createLeague" class="space-y-5">
-        <div>
-          <label class="block text-green-200 text-sm font-medium mb-1">Nombre de la liga</label>
+      <!-- Form card -->
+      <form class="card form-card" @submit.prevent="createLeague">
+        <div class="field">
+          <label class="label" for="league-name">Nombre de la liga</label>
           <input
+            id="league-name"
             v-model="form.name"
             type="text"
             required
             maxlength="100"
             placeholder="Liga de amigos"
-            class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+            class="input"
           />
         </div>
 
-        <div>
-          <label class="block text-green-200 text-sm font-medium mb-1">Máximo de miembros</label>
+        <div class="field">
+          <label class="label" for="league-max">Máximo de miembros</label>
           <input
+            id="league-max"
             v-model.number="form.max_members"
             type="number"
             required
             min="2"
             max="20"
-            class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+            class="input mono"
           />
-          <p class="text-green-300/40 text-xs mt-1">Entre 2 y 20 participantes</p>
+          <p class="hint mono">Entre 2 y 20 participantes</p>
         </div>
 
-        <div>
-          <label class="block text-green-200 text-sm font-medium mb-1">Presupuesto por equipo (€)</label>
+        <div class="field">
+          <label class="label" for="league-budget">Presupuesto por equipo (€)</label>
           <input
+            id="league-budget"
             v-model.number="form.budget_per_user"
             type="number"
             required
             min="1000000"
             step="1000000"
-            class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-green-300/50 focus:outline-none focus:ring-2 focus:ring-amber-400 transition"
+            class="input mono"
           />
-          <p class="text-green-300/40 text-xs mt-1">Mínimo 1.000.000 €</p>
+          <p class="hint mono">{{ budgetHint }}</p>
         </div>
 
-        <button
-          type="submit"
-          :disabled="submitting"
-          class="w-full py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/50 text-white font-bold rounded-lg transition-all shadow-lg"
-        >
+        <button type="submit" class="btn btn-primary submit" :disabled="submitting">
           {{ submitting ? "Creando..." : "Crear liga" }}
         </button>
       </form>
     </div>
-  </AppLayout>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, computed } from "vue";
 import { useRouter } from "vue-router";
-import AppLayout from "@/layouts/AppLayout.vue";
+import AppShell from "@/design-system/AppShell.vue";
 import api from "@/lib/api";
 
 const router = useRouter();
 const error = ref("");
 const submitting = ref(false);
 
+// Data wiring unchanged from D1.2: same fields, same field names, same endpoint.
 const form = reactive({
   name: "",
   max_members: 10,
   budget_per_user: 100000000,
+});
+
+// Friendly compact echo of the raw euro amount the form submits (e.g. "100M").
+const budgetHint = computed(() => {
+  const millions = Math.round(form.budget_per_user / 1_000_000);
+  return `Mínimo 1.000.000 € · actual ≈ ${millions}M`;
 });
 
 async function createLeague() {
@@ -93,3 +102,105 @@ async function createLeague() {
   }
 }
 </script>
+
+<style scoped>
+.create {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 520px;
+  color: var(--ink-100);
+}
+
+.back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--ink-400);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.back:hover {
+  color: var(--ink-100);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.meta-lime {
+  color: var(--lime);
+  letter-spacing: 0.2em;
+}
+
+.title {
+  font-size: 64px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+.form-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+/* .label and .input come from tokens.css */
+.hint {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+  margin: 6px 0 0;
+}
+
+.submit {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+}
+
+.submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.state {
+  text-align: center;
+  padding: 14px;
+  font-size: 13px;
+  border-radius: var(--r-md);
+}
+
+.state-error {
+  color: var(--down);
+  background: rgba(255, 98, 98, 0.1);
+  border: 1px solid rgba(255, 98, 98, 0.3);
+}
+
+@media (max-width: 767px) {
+  .title {
+    font-size: 40px;
+  }
+}
+</style>
