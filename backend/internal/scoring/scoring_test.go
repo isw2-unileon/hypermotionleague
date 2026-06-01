@@ -118,7 +118,7 @@ func TestComputePoints(t *testing.T) {
 			name: "DEF 4 goals conceded",
 			pos:  "DEF",
 			s:    PlayerMatchStats{Minutes: 90, GoalsConceded: 4},
-			want: 2 - 2,
+			want: 0, // 2 (min) - 2 (4 conceded / 2)
 		},
 		{
 			name: "MID goals conceded no penalty",
@@ -158,7 +158,7 @@ func TestComputePoints(t *testing.T) {
 			name: "own goal",
 			pos:  "DEF",
 			s:    PlayerMatchStats{Minutes: 90, OwnGoals: 1},
-			want: 2 - 2,
+			want: 0, // 2 (min) - 2 (own goal)
 		},
 
 		// ── Penalty missed ───────────────────────────────────────────────
@@ -166,7 +166,7 @@ func TestComputePoints(t *testing.T) {
 			name: "pen missed",
 			pos:  "FWD",
 			s:    PlayerMatchStats{Minutes: 90, PensMissed: 1},
-			want: 2 - 2,
+			want: 0, // 2 (min) - 2 (pen missed)
 		},
 
 		// ── GK: penalty saved ────────────────────────────────────────────
