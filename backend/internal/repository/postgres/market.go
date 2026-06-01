@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/jackc/pgx/v5"
@@ -283,24 +284,35 @@ func (r *MarketRepo) CancelBid(ctx context.Context, bidID, userID int64) error {
 }
 
 // GetMarketStatus retrieves the market status for a user in a league.
+// closes_at = MIN(expires_at) of open, non-expired listings.
+// is_open   = true when at least one such listing exists.
 func (r *MarketRepo) GetMarketStatus(ctx context.Context, leagueID, userID int64) (*models.MarketStatus, error) {
 	query := `
-		SELECT l.market_close_time,
-		       (SELECT COUNT(*) FROM market_listings ml WHERE ml.league_id = $1 AND ml.status = 'active'),
-		       (SELECT COUNT(*) FROM bids b
-		        INNER JOIN market_listings ml ON b.listing_id = ml.id
-		        WHERE ml.league_id = $1 AND b.user_id = $2 AND b.status = 'active')
-		FROM leagues l
-		WHERE l.id = $1`
+		SELECT
+			(SELECT COUNT(*)
+			 FROM market_listings ml
+			 WHERE ml.league_id = $1 AND ml.status = 'active' AND ml.expires_at > NOW()),
+			(SELECT MIN(ml.expires_at)
+			 FROM market_listings ml
+			 WHERE ml.league_id = $1 AND ml.status = 'active' AND ml.expires_at > NOW()),
+			(SELECT COUNT(*)
+			 FROM bids b
+			 INNER JOIN market_listings ml ON b.listing_id = ml.id
+			 WHERE ml.league_id = $1 AND b.user_id = $2 AND b.status = 'active')`
 
-	var closeTime string
 	status := &models.MarketStatus{LeagueID: leagueID, MaxBidsPerUser: 5}
+	var closesAt *time.Time
 
 	err := r.pool.QueryRow(ctx, query, leagueID, userID).Scan(
-		&closeTime, &status.ActiveListings, &status.YourActiveBids,
+		&status.ActiveListings, &closesAt, &status.YourActiveBids,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("get market status: %w", err)
+	}
+
+	if closesAt != nil {
+		status.ClosesAt = *closesAt
+		status.IsOpen = true
 	}
 
 	return status, nil
