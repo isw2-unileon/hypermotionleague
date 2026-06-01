@@ -328,6 +328,80 @@ func TestSaveLineup_NotMember(t *testing.T) {
 	}
 }
 
+func TestSaveLineup_WrongStarters(t *testing.T) {
+	md := futureMatchday()
+	req := models.CreateLineupRequest{
+		MatchdayID: 10,
+		Players: []models.LineupPlayerInput{
+			{PlayerID: 1, Position: models.PositionGK, IsStarter: true},
+			{PlayerID: 2, Position: models.PositionDEF, IsStarter: true},
+		},
+	}
+
+	h := NewLineupHandler(
+		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			return []models.Matchday{md}, nil
+		}},
+		&mockTeamRepo{},
+		&mockLeagueRepo{},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodPut, "/leagues/1/matchdays/1/lineup", req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSaveLineup_PlayerNotOwned(t *testing.T) {
+	md := futureMatchday()
+
+	h := NewLineupHandler(
+		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			return []models.Matchday{md}, nil
+		}},
+		&mockTeamRepo{fnHasPlayer: func(_ context.Context, _, _, _ int64) (bool, error) {
+			return false, nil
+		}},
+		&mockLeagueRepo{},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodPut, "/leagues/1/matchdays/1/lineup", valid442())
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestSaveLineup_CreatesNewLineup(t *testing.T) {
+	md := futureMatchday()
+	calls := 0
+
+	h := NewLineupHandler(
+		&mockMatchdayRepo{
+			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+				return []models.Matchday{md}, nil
+			},
+			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {
+				calls++
+				if calls == 1 {
+					return nil, nil
+				}
+				return &models.LineupWithPlayers{Lineup: models.Lineup{ID: 1}}, nil
+			},
+			fnCreateLineup: func(_ context.Context, lineup *models.Lineup) error {
+				lineup.ID = 1
+				return nil
+			},
+		},
+		&mockTeamRepo{},
+		&mockLeagueRepo{},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodPut, "/leagues/1/matchdays/1/lineup", valid442())
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
 // ── GetLineup tests ────────────────────────────────────────────────────────
 
 func TestGetLineup_NotFound(t *testing.T) {
@@ -375,6 +449,36 @@ func TestGetLineup_Success(t *testing.T) {
 	}
 }
 
+// ── GetLineup tests (additional) ──────────────────────────────────────────
+
+func TestGetLineup_Unauthorized(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+	// no userID set → defaults to 0
+	h := NewLineupHandler(&mockMatchdayRepo{}, &mockTeamRepo{}, &mockLeagueRepo{})
+	r.GET("/leagues/:id/matchdays/:number/lineup", h.GetLineup)
+
+	w := doRequest(r, http.MethodGet, "/leagues/1/matchdays/1/lineup", nil)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestGetLineup_NotMember(t *testing.T) {
+	h := NewLineupHandler(
+		&mockMatchdayRepo{},
+		&mockTeamRepo{},
+		&mockLeagueRepo{fnGetMember: func(_ context.Context, _, _ int64) (*models.LeagueMember, error) {
+			return nil, nil
+		}},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodGet, "/leagues/1/matchdays/1/lineup", nil)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
 // ── RemoveLineupPlayer tests ───────────────────────────────────────────────
 
 func TestRemoveLineupPlayer_Success(t *testing.T) {
@@ -401,5 +505,42 @@ func TestRemoveLineupPlayer_Success(t *testing.T) {
 	}
 	if !removed {
 		t.Error("RemoveLineupPlayer was not called")
+	}
+}
+
+func TestRemoveLineupPlayer_NotMember(t *testing.T) {
+	h := NewLineupHandler(
+		&mockMatchdayRepo{},
+		&mockTeamRepo{},
+		&mockLeagueRepo{fnGetMember: func(_ context.Context, _, _ int64) (*models.LeagueMember, error) {
+			return nil, nil
+		}},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodDelete, "/leagues/1/matchdays/1/lineup/players/5", nil)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", w.Code)
+	}
+}
+
+func TestRemoveLineupPlayer_NoLineup(t *testing.T) {
+	md := futureMatchday()
+
+	h := NewLineupHandler(
+		&mockMatchdayRepo{
+			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+				return []models.Matchday{md}, nil
+			},
+			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {
+				return nil, nil
+			},
+		},
+		&mockTeamRepo{},
+		&mockLeagueRepo{},
+	)
+
+	w := doRequest(newTestRouter(h), http.MethodDelete, "/leagues/1/matchdays/1/lineup/players/5", nil)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
