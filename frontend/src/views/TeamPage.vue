@@ -1,132 +1,254 @@
+<!--
+  SPRINT 2 WIRING — DEV 3
+  =======================
+  This page is a STATIC SHELL. To wire it:
+  1. [DONE] Fetch current lineup:
+       GET /api/v1/leagues/:id/matchdays/:number/lineup
+  2. Save lineup:
+       PUT /api/v1/leagues/:id/lineups/me  with body
+       { players: [{ playerId, positionSlot, isStarter }] }
+       The backend uses ReplaceLineupPlayers (Sprint 1.6 task 3.1)
+       so saves are atomic and stale players are dropped.
+  3. [DONE] Deadline: live countdown wired to currentMatchday.start_date via setInterval
+  4. [DONE] Substitution modal: selectBenchPlayer swaps slots and sets hasEdits;
+       saveLineup calls PUT /api/v1/leagues/:id/matchdays/:number/lineup atomically.
+-->
 <template>
   <AppLayout>
-    <div class="px-4 pt-6 pb-4">
-      <h1 class="text-xl font-semibold text-white mb-4">Mi Equipo</h1>
-
-      <!-- League selector -->
-      <select
-        v-model="selectedLeagueId"
-        class="w-full bg-green-950/60 border border-white/10 text-white rounded-lg px-3 py-2 mb-4 text-sm"
-        @change="onLeagueChange"
-      >
-        <option disabled value="">Selecciona una liga</option>
-        <option v-for="league in leagues" :key="league.id" :value="league.id">
-          {{ league.name }}
-        </option>
-      </select>
-
-      <!-- Loading -->
-      <div v-if="loading" class="text-center text-green-300/60 py-12 text-sm">
-        Cargando equipo...
+    <div class="equipo-page">
+<!-- ── Header ── -->
+      <div class="equipo-header">
+        <div>
+          <span class="meta-strip">
+            <span class="meta-dot"></span>
+            MI EQUIPO · J·{{ currentMatchday?.number ?? '—' }}
+          </span>
+          <h1 class="display uc equipo-title">
+            {{ selectedLeagueName || 'Mi Equipo' }}
+          </h1>
+        </div>
+        <span class="tag tag-lime tnum">CIERRA EN {{ countdown }}</span>
       </div>
 
-      <!-- Error -->
-      <div v-else-if="error" class="text-center text-red-400 py-12 text-sm">
-        {{ error }}
+      <!-- ── League selector ── -->
+      <div class="league-select-wrap">
+        <select v-model="selectedLeagueId" @change="onLeagueChange" class="input">
+          <option disabled value="">Selecciona una liga</option>
+          <option v-for="league in leagues" :key="league.id" :value="league.id">
+            {{ league.name }}
+          </option>
+        </select>
       </div>
 
-      <!-- Empty state: no league selected -->
-      <div v-else-if="!selectedLeagueId" class="text-center text-green-300/60 py-12 text-sm">
+      <!-- ── Formation chips ── -->
+      <div class="formation-chips">
+        <button
+          v-for="f in formationKeys"
+          :key="f"
+          class="btn formation-chip"
+          :class="formation === f ? 'btn-primary' : 'btn-ghost'"
+          @click="selectFormation(f)"
+        >
+          {{ f }}
+        </button>
+      </div>
+
+      <!-- ── States ── -->
+      <div v-if="loading" class="state-msg mono">Cargando equipo…</div>
+      <div v-else-if="error" class="state-msg state-error">{{ error }}</div>
+      <div v-else-if="!selectedLeagueId" class="state-msg mono">
         Selecciona una liga para ver tu equipo
       </div>
-
-      <!-- Empty squad -->
-      <div
-        v-else-if="team && team.players.length === 0"
-        class="text-center py-12"
-      >
-        <p class="text-4xl mb-3">👕</p>
-        <p class="text-white font-semibold mb-1">Tu plantilla está vacía</p>
-        <p class="text-green-300/60 text-sm">Ve al mercado para fichar jugadores</p>
+      <div v-else-if="squadPlayers.length === 0" class="state-msg mono">
+        Tu plantilla está vacía — ve al mercado
       </div>
 
-      <div v-else-if="team">
-        <!-- Summary bar -->
-        <div class="flex gap-3 mb-4">
-          <div class="flex-1 bg-green-950/60 border border-white/10 rounded-xl p-3 text-center">
-            <p class="text-green-300/60 text-xs mb-1">Valor plantilla</p>
-            <p class="text-white font-bold text-sm">{{ formatMoney(team.total_value) }}</p>
-          </div>
-          <div class="flex-1 bg-green-950/60 border border-white/10 rounded-xl p-3 text-center">
-            <p class="text-green-300/60 text-xs mb-1">Presupuesto</p>
-            <p class="text-amber-400 font-bold text-sm">{{ formatMoney(team.budget) }}</p>
-          </div>
-          <div class="flex-1 bg-green-950/60 border border-white/10 rounded-xl p-3 text-center">
-            <p class="text-green-300/60 text-xs mb-1">Jugadores</p>
-            <p class="text-white font-bold text-sm">{{ team.players.length }}</p>
-          </div>
-        </div>
+      <!-- ── Pitch ── -->
+      <div v-else-if="squadPlayers.length > 0" class="pitch-wrap">
+        <div class="pitch-container">
+          <PitchSVG />
 
-        <!-- Go to lineup button -->
-        <button
-          v-if="currentMatchday"
-          @click="goToLineup"
-          class="w-full py-3 bg-amber-500 hover:bg-amber-400 text-white font-semibold rounded-xl text-sm mb-5 transition-colors"
-        >
-          Editar alineación — Jornada {{ currentMatchday.number }}
-        </button>
-
-        <!-- Players grouped by position -->
-        <div v-for="pos in POSITIONS" :key="pos">
-          <div v-if="playersByPosition(pos).length > 0" class="mb-5">
-            <h3 class="text-green-300/60 text-xs font-semibold uppercase tracking-wide mb-2 px-1">
-              {{ positionLabel(pos) }} ({{ playersByPosition(pos).length }})
-            </h3>
-            <div class="rounded-xl overflow-hidden border border-white/10">
+          <div class="pitch-field">
+            <!-- FWD row -->
+            <div class="position-row">
               <div
-                v-for="(entry, i) in playersByPosition(pos)"
-                :key="entry.player_id"
-                class="flex items-center px-4 py-3"
-                :class="i > 0 ? 'border-t border-white/5' : ''"
+                v-for="(slot, i) in slottedPlayers.fwd"
+                :key="'fwd-' + i"
+                class="player-slot"
+                @click="openSubModal(slot, 'FWD', i)"
               >
-                <!-- Position badge -->
-                <span
-                  class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0"
-                  :class="positionBadge(pos)"
-                >
-                  {{ pos }}
-                </span>
-
-                <!-- Player info -->
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-white truncate">
-                    {{ entry.player.first_name }} {{ entry.player.last_name }}
-                  </p>
-                  <p class="text-xs text-green-300/50">{{ entry.player.team_name }}</p>
+                <template v-if="slot">
+                  <PlayerPhoto
+                    :team="shortTeam(slot.player.team_name)"
+                    :color="teamColor(slot.player.team_name)"
+                    :size="48"
+                  />
+                  <span class="pos pos-fwd">DEL</span>
+                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                </template>
+                <div v-else class="slot-empty">
+                  <span class="pos pos-fwd">DEL</span>
                 </div>
+              </div>
+            </div>
 
-                <!-- Values -->
-                <div class="text-right ml-3">
-                  <p class="text-xs font-semibold text-amber-400">
-                    {{ formatMoney(entry.player.market_value) }}
-                  </p>
-                  <p class="text-xs text-green-300/40">
-                    Compra: {{ formatMoney(entry.purchase_price) }}
-                  </p>
+            <!-- MID row -->
+            <div class="position-row">
+              <div
+                v-for="(slot, i) in slottedPlayers.mid"
+                :key="'mid-' + i"
+                class="player-slot"
+                @click="openSubModal(slot, 'MID', i)"
+              >
+                <template v-if="slot">
+                  <PlayerPhoto
+                    :team="shortTeam(slot.player.team_name)"
+                    :color="teamColor(slot.player.team_name)"
+                    :size="48"
+                  />
+                  <span class="pos pos-mid">MED</span>
+                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                </template>
+                <div v-else class="slot-empty">
+                  <span class="pos pos-mid">MED</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- DEF row -->
+            <div class="position-row">
+              <div
+                v-for="(slot, i) in slottedPlayers.def"
+                :key="'def-' + i"
+                class="player-slot"
+                @click="openSubModal(slot, 'DEF', i)"
+              >
+                <template v-if="slot">
+                  <PlayerPhoto
+                    :team="shortTeam(slot.player.team_name)"
+                    :color="teamColor(slot.player.team_name)"
+                    :size="48"
+                  />
+                  <span class="pos pos-def">DEF</span>
+                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                </template>
+                <div v-else class="slot-empty">
+                  <span class="pos pos-def">DEF</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- GK row -->
+            <div class="position-row">
+              <div
+                v-for="(slot, i) in slottedPlayers.gk"
+                :key="'gk-' + i"
+                class="player-slot"
+                @click="openSubModal(slot, 'GK', i)"
+              >
+                <template v-if="slot">
+                  <PlayerPhoto
+                    :team="shortTeam(slot.player.team_name)"
+                    :color="teamColor(slot.player.team_name)"
+                    :size="48"
+                  />
+                  <span class="pos pos-gk">POR</span>
+                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                </template>
+                <div v-else class="slot-empty">
+                  <span class="pos pos-gk">POR</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        <!-- ── Save bar ── -->
+        <div class="save-bar">
+          <button
+            class="btn btn-primary save-btn"
+            :disabled="!hasEdits || saving"
+            @click="saveLineup"
+          >
+            {{ saving ? 'Guardando…' : 'Guardar alineación' }}
+          </button>
+          <p v-if="saveError" class="save-error mono">{{ saveError }}</p>
+        </div>
       </div>
-    </div>
+
+      <!-- ── Substitution modal (stub) ── -->
+      <Teleport to="body">
+        <div
+          v-if="subModal.open"
+          class="modal-overlay"
+          @click.self="subModal.open = false"
+        >
+          <div class="modal-panel card">
+            <div class="meta-strip" style="margin-bottom: var(--s-4)">
+              <span class="meta-dot"></span>
+              CAMBIAR JUGADOR
+            </div>
+            <p class="modal-slot-info mono">
+              {{ posLabel(subModal.position) }} · Slot {{ subModal.index + 1 }}
+            </p>
+
+            <div class="bench-list">
+              <div
+                v-for="p in benchPlayers(subModal.position)"
+                :key="p.player_id"
+                class="bench-row card-flat"
+                @click="selectBenchPlayer(p)"
+              >
+                <span class="pos" :class="posBadgeClass(subModal.position)">
+                  {{ posLabel(subModal.position) }}
+                </span>
+                <span class="bench-name">
+                  {{ p.player.first_name }} {{ p.player.last_name }}
+                </span>
+                <span class="bench-team mono">{{ shortTeam(p.player.team_name) }}</span>
+              </div>
+              <p v-if="benchPlayers(subModal.position).length === 0" class="no-bench mono">
+                Sin suplentes disponibles
+              </p>
+            </div>
+
+            <button
+              class="btn btn-ghost"
+              style="width: 100%; margin-top: var(--s-4)"
+              @click="subModal.open = false"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </Teleport>
+</div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
+import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
 
-type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
+// ── Types ──────────────────────────────────────────────────────────────────
 
-const POSITIONS: PlayerPosition[] = ['GK', 'DEF', 'MID', 'FWD'];
+type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
 
 interface League {
   id: number;
   name: string;
-  budget_per_user: number;
+}
+
+interface Matchday {
+  id: number;
+  number: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
 }
 
 interface Player {
@@ -138,6 +260,26 @@ interface Player {
   market_value: number;
 }
 
+interface LineupPlayer {
+  id: number;
+  lineup_id: number;
+  player_id: number;
+  position: PlayerPosition;
+  is_starter: boolean;
+  points: number;
+  player: Player;
+}
+
+interface LineupWithPlayers {
+  id: number;
+  league_id: number;
+  user_id: number;
+  matchday_id: number;
+  total_points: number;
+  players: LineupPlayer[];
+}
+
+// Kept for squad fetch (bench source when building a new lineup from scratch)
 interface TeamPlayerWithDetails {
   id: number;
   player_id: number;
@@ -152,61 +294,232 @@ interface UserTeam {
   total_value: number;
 }
 
-interface Matchday {
-  id: number;
-  number: number;
-  name: string;
-  end_date: string;
-  is_current: boolean;
-}
+// ── Formations ─────────────────────────────────────────────────────────────
 
-const router = useRouter();
+const FORMATIONS: Record<string, { gk: number; def: number; mid: number; fwd: number }> = {
+  '4-4-2': { gk: 1, def: 4, mid: 4, fwd: 2 },
+  '4-3-3': { gk: 1, def: 4, mid: 3, fwd: 3 },
+  '3-5-2': { gk: 1, def: 3, mid: 5, fwd: 2 },
+  '5-3-2': { gk: 1, def: 5, mid: 3, fwd: 2 },
+  '3-4-3': { gk: 1, def: 3, mid: 4, fwd: 3 },
+};
+const formationKeys = Object.keys(FORMATIONS);
+
+// ── State ──────────────────────────────────────────────────────────────────
+
 const leagues = ref<League[]>([]);
 const selectedLeagueId = ref<number | ''>('');
-const team = ref<UserTeam | null>(null);
 const currentMatchday = ref<Matchday | null>(null);
+const lineup = ref<LineupWithPlayers | null>(null);
+const squadPlayers = ref<TeamPlayerWithDetails[]>([]);
 const loading = ref(false);
 const error = ref('');
+const formation = ref('4-3-3');
+const hasEdits = ref(false);
+const saving = ref(false);
+const saveError = ref('');
+const countdown = ref('--:--:--');
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
-function formatMoney(amount: number): string {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+const subModal = reactive<{
+  open: boolean;
+  position: PlayerPosition;
+  index: number;
+  current: LineupPlayer | null;
+}>({ open: false, position: 'FWD', index: 0, current: null });
 
-function positionLabel(pos: PlayerPosition): string {
-  return { GK: 'Porteros', DEF: 'Defensas', MID: 'Centrocampistas', FWD: 'Delanteros' }[pos];
-}
+// ── Derived ────────────────────────────────────────────────────────────────
 
-function positionBadge(pos: PlayerPosition): string {
+const selectedLeagueName = computed(
+  () => leagues.value.find(l => l.id === selectedLeagueId.value)?.name ?? '',
+);
+
+const slottedPlayers = computed(() => {
+  const config = FORMATIONS[formation.value] ?? { gk: 1, def: 4, mid: 3, fwd: 3 };
+  const take = (pos: PlayerPosition, n: number): (LineupPlayer | null)[] => {
+    const starters = lineup.value?.players.filter(p => p.is_starter && p.position === pos) ?? [];
+    return Array.from({ length: n }, (_, i) => starters[i] ?? null);
+  };
   return {
-    GK: 'bg-amber-500/20 text-amber-400',
-    DEF: 'bg-blue-500/20 text-blue-400',
-    MID: 'bg-green-500/20 text-green-400',
-    FWD: 'bg-red-500/20 text-red-400',
-  }[pos];
+    gk:  take('GK',  config.gk),
+    def: take('DEF', config.def),
+    mid: take('MID', config.mid),
+    fwd: take('FWD', config.fwd),
+  };
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function shortTeam(name: string): string {
+  return name.slice(0, 3).toUpperCase();
 }
 
-function playersByPosition(pos: PlayerPosition): TeamPlayerWithDetails[] {
-  return team.value?.players.filter(p => p.player.position === pos) ?? [];
+const TEAM_PALETTE = [
+  '#3B82F6', '#EF4444', '#F59E0B', '#10B981',
+  '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
+];
+function teamColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return TEAM_PALETTE[Math.abs(hash) % TEAM_PALETTE.length] ?? '#3B82F6';
+}
+
+function posLabel(pos: PlayerPosition): string {
+  return { GK: 'POR', DEF: 'DEF', MID: 'MED', FWD: 'DEL' }[pos];
+}
+
+function posBadgeClass(pos: PlayerPosition): string {
+  return { GK: 'pos-gk', DEF: 'pos-def', MID: 'pos-mid', FWD: 'pos-fwd' }[pos];
+}
+
+function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
+  // Non-starters already in the lineup for this position
+  const nonStarters = lineup.value?.players.filter(p => !p.is_starter && p.position === pos) ?? [];
+  if (nonStarters.length > 0) return nonStarters;
+
+  // Fallback: squad players not present in the lineup at all (new lineup from scratch)
+  const inLineup = new Set(lineup.value?.players.map(p => p.player_id) ?? []);
+  return squadPlayers.value
+    .filter(p => p.player.position === pos && !inLineup.has(p.player_id))
+    .map(p => ({
+      id: 0,
+      lineup_id: 0,
+      player_id: p.player_id,
+      position: pos,
+      is_starter: false,
+      points: 0,
+      player: p.player,
+    }));
+}
+
+// ── Countdown ──────────────────────────────────────────────────────────────
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return '00:00:00';
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function startCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  if (!currentMatchday.value) { countdown.value = '--:--:--'; return; }
+  const deadline = new Date(currentMatchday.value.start_date).getTime();
+  const tick = () => {
+    const remaining = deadline - Date.now();
+    countdown.value = formatCountdown(remaining);
+    if (remaining <= 0 && countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+watch(currentMatchday, () => startCountdown());
+
+onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
+
+// ── Actions ────────────────────────────────────────────────────────────────
+
+function selectFormation(f: string) {
+  formation.value = f;
+}
+
+function openSubModal(slot: LineupPlayer | null, pos: PlayerPosition, idx: number) {
+  subModal.open = true;
+  subModal.position = pos;
+  subModal.index = idx;
+  subModal.current = slot;
+}
+
+function selectBenchPlayer(p: LineupPlayer) {
+  if (!lineup.value) {
+    if (!currentMatchday.value) return;
+    lineup.value = {
+      id: 0,
+      league_id: Number(selectedLeagueId.value) || 0,
+      user_id: 0,
+      matchday_id: currentMatchday.value.id,
+      total_points: 0,
+      players: [],
+    };
+  }
+
+  const players = lineup.value.players;
+
+  // Move current slot occupant to bench
+  if (subModal.current) {
+    const cur = players.find(lp => lp.player_id === subModal.current!.player_id);
+    if (cur) cur.is_starter = false;
+  }
+
+  // Promote incoming player to starter
+  const existing = players.find(lp => lp.player_id === p.player_id);
+  if (existing) {
+    existing.is_starter = true;
+  } else {
+    players.push({ ...p, is_starter: true });
+  }
+
+  hasEdits.value = true;
+  subModal.open = false;
+}
+
+async function saveLineup() {
+  if (!currentMatchday.value || !selectedLeagueId.value || !hasEdits.value) return;
+  saving.value = true;
+  saveError.value = '';
+  try {
+    const reqPlayers = (lineup.value?.players ?? []).map(p => ({
+      player_id: p.player_id,
+      position: p.position,
+      is_starter: p.is_starter,
+    }));
+    await api.put(
+      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+      { matchday_id: currentMatchday.value.id, players: reqPlayers },
+    );
+    hasEdits.value = false;
+    lineup.value = await api.get<LineupWithPlayers>(
+      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+    );
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : 'Error al guardar la alineación';
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onLeagueChange() {
   if (!selectedLeagueId.value) return;
-  team.value = null;
+  lineup.value = null;
+  squadPlayers.value = [];
   currentMatchday.value = null;
   error.value = '';
   loading.value = true;
   try {
-    const [teamData, matchdaysData] = await Promise.all([
-      api.get<UserTeam>(`/api/v1/leagues/${selectedLeagueId.value}/team`),
-      api.get<{ matchdays: Matchday[] }>(`/api/v1/leagues/${selectedLeagueId.value}/matchdays`),
-    ]);
-    team.value = teamData;
+    const leagueId = selectedLeagueId.value;
+
+    // 1. Fetch current matchday
+    const matchdaysData = await api.get<{ matchdays: Matchday[] }>(`/api/v1/leagues/${leagueId}/matchdays`);
     const matchdays = matchdaysData.matchdays ?? [];
     currentMatchday.value = matchdays.find(m => m.is_current) ?? matchdays[0] ?? null;
+
+    // 2. Fetch squad (needed for bench when building a lineup from scratch)
+    const teamData = await api.get<UserTeam>(`/api/v1/leagues/${leagueId}/team`);
+    squadPlayers.value = teamData.players;
+
+    // 3. Try to fetch existing lineup for current matchday (may not exist yet — 404 is OK)
+    if (currentMatchday.value) {
+      try {
+        lineup.value = await api.get<LineupWithPlayers>(
+          `/api/v1/leagues/${leagueId}/matchdays/${currentMatchday.value.number}/lineup`,
+        );
+      } catch {
+        lineup.value = null; // no lineup saved yet for this matchday
+      }
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : 'Error al cargar el equipo';
   } finally {
@@ -214,17 +527,11 @@ async function onLeagueChange() {
   }
 }
 
-function goToLineup() {
-  if (!selectedLeagueId.value || !currentMatchday.value) return;
-  router.push(`/lineup/${selectedLeagueId.value}/${currentMatchday.value.number}`);
-}
-
 onMounted(async () => {
   try {
     leagues.value = await api.get<League[]>('/api/v1/leagues');
-    const onlyLeague = leagues.value.length === 1 ? leagues.value[0] : undefined;
-    if (onlyLeague) {
-      selectedLeagueId.value = onlyLeague.id;
+    if (leagues.value.length === 1) {
+      selectedLeagueId.value = leagues.value[0]!.id;
       await onLeagueChange();
     }
   } catch {
@@ -232,3 +539,249 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+/* ── Page shell ── */
+.equipo-page {
+  padding: var(--s-4) var(--s-4) var(--s-16);
+  min-height: 100vh;
+  background: var(--ink-900);
+  color: var(--ink-100);
+}
+
+/* ── Header ── */
+.equipo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--s-4);
+  padding-top: var(--s-4);
+}
+
+.equipo-title {
+  font-family: var(--f-display);
+  font-size: 32px;
+  line-height: 1;
+  color: var(--ink-50);
+  margin: var(--s-1) 0 0;
+}
+
+/* ── League selector ── */
+.league-select-wrap {
+  margin-bottom: var(--s-4);
+}
+
+/* ── Formation chips ── */
+.formation-chips {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-5);
+}
+
+.formation-chip {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+}
+
+/* ── State messages ── */
+.state-msg {
+  text-align: center;
+  color: var(--ink-400);
+  padding: var(--s-12) 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+
+.state-error {
+  color: var(--down);
+}
+
+/* ── Pitch wrapper ── */
+.pitch-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+/* ── Pitch container ── */
+.pitch-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: #1a2e1a;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--ink-700);
+}
+
+/* ── Pitch field overlay ── */
+.pitch-field {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column-reverse; /* GK at bottom */
+  padding: var(--s-4) var(--s-2);
+  z-index: 1;
+}
+
+/* ── Position rows ── */
+.position-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex: 1;
+}
+
+/* ── Player slot ── */
+.player-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r-md);
+  transition: background 0.15s;
+}
+
+.player-slot:hover {
+  background: rgba(199, 255, 61, 0.08);
+}
+
+.slot-name {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-100);
+  max-width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* ── Empty slot ── */
+.slot-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--r-md);
+  border: 1px dashed var(--ink-600);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ── Save bar ── */
+.save-bar {
+  padding: var(--s-2) 0;
+}
+
+.save-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 14px;
+}
+
+.save-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.save-error {
+  margin-top: var(--s-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--down);
+  text-align: center;
+}
+
+/* ── Modal overlay ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 11, 0.75);
+  display: flex;
+  align-items: flex-end;
+  z-index: 50;
+}
+
+.modal-panel {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: var(--s-6) var(--s-4) var(--s-8);
+  overflow-y: auto;
+}
+
+.modal-slot-info {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-300);
+  margin: 0 0 var(--s-4);
+}
+
+/* ── Bench list ── */
+.bench-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bench-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: background 0.12s;
+}
+
+.bench-row:hover {
+  background: var(--ink-700);
+}
+
+.bench-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink-100);
+}
+
+.bench-team {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--ink-400);
+  text-transform: uppercase;
+}
+
+.no-bench {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+  text-align: center;
+  padding: var(--s-4) 0;
+}
+
+/* ── Desktop enhancement ── */
+@media (min-width: 768px) {
+  .equipo-page {
+    max-width: 480px;
+    margin: 0 auto;
+    padding-top: var(--s-8);
+  }
+
+  .equipo-title {
+    font-size: 42px;
+  }
+
+  .pitch-container {
+    aspect-ratio: 2 / 3;
+  }
+}
+</style>
