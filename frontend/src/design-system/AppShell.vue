@@ -90,7 +90,6 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
-import { logout } from "@/lib/auth";
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
 
