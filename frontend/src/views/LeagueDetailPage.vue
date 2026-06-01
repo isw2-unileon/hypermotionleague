@@ -1,127 +1,137 @@
 <template>
-  <AppLayout>
-    <div class="p-4 max-w-lg mx-auto">
+  <AppShell>
+    <div class="detail">
       <!-- Back -->
-      <button @click="router.push('/leagues')" class="text-green-300/60 hover:text-white transition-colors mb-4 text-sm">
+      <button type="button" class="back mono" @click="router.push('/leagues')">
         ← Mis Ligas
       </button>
 
       <!-- Loading -->
-      <div v-if="loading" class="text-center py-12">
-        <p class="text-green-300/60">Cargando...</p>
-      </div>
+      <div v-if="loading" class="state state-muted">Cargando...</div>
 
       <!-- Error -->
-      <div v-else-if="error" class="p-3 bg-red-500/20 border border-red-400/30 rounded-lg text-red-200 text-sm">
-        {{ error }}
-      </div>
+      <div v-else-if="error" class="state state-error">{{ error }}</div>
 
       <!-- Content -->
       <template v-else-if="league">
-        <!-- League header -->
-        <div class="bg-white/10 border border-white/10 rounded-xl p-5 mb-4">
-          <h1 class="text-2xl font-bold text-white mb-3">{{ league.name }}</h1>
-          <div class="space-y-2 text-sm">
-            <div class="flex justify-between">
-              <span class="text-green-300/60">Presupuesto</span>
-              <span class="text-white font-medium">{{ formatBudget(league.budget_per_user) }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-green-300/60">Miembros</span>
-              <span class="text-white font-medium">{{ members.length }} / {{ league.max_members }}</span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-green-300/60">Cierre mercado</span>
-              <span class="text-white font-medium">{{ league.market_close_time }}</span>
-            </div>
+        <!-- Header -->
+        <header class="header">
+          <!-- nº miembros is real; TEMP 25/26 · J·32 is static pending a
+               matchday/season endpoint — TODO Sprint 2: bind J·xx and season. -->
+          <div class="meta meta-lime mono">
+            ◆ {{ members.length }} MÁNAGERS · TEMP 25/26 · J·32
           </div>
+          <h1 class="title display">{{ league.name }}</h1>
+        </header>
 
-          <!-- Invite code -->
-          <div class="mt-4 pt-4 border-t border-white/10">
-            <p class="text-green-300/60 text-xs mb-2">Código de invitación</p>
-            <div class="flex items-center gap-2">
-              <code class="flex-1 bg-white/5 px-3 py-2 rounded-lg text-amber-400 font-mono text-sm tracking-wider">
-                {{ league.invite_code }}
-              </code>
-              <button
-                @click="copyCode"
-                class="px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-lg transition-colors"
-              >
-                {{ copied ? "Copiado!" : "Copiar" }}
-              </button>
-            </div>
+        <!-- Info strip -->
+        <div class="info">
+          <div class="card info-cell">
+            <div class="info-label mono">PRESUPUESTO</div>
+            <div class="info-value display tnum">{{ budgetCompact(league.budget_per_user) }}</div>
+            <div class="info-sub mono">{{ formatBudget(league.budget_per_user) }}</div>
+          </div>
+          <div class="card info-cell">
+            <div class="info-label mono">MÁNAGERS</div>
+            <div class="info-value display tnum">{{ members.length }}<span class="info-slash">/{{ league.max_members }}</span></div>
+            <div class="info-sub mono">plazas ocupadas</div>
+          </div>
+          <div class="card info-cell">
+            <div class="info-label mono">CIERRE MERCADO</div>
+            <div class="info-value display tnum lime">{{ league.market_close_time }}</div>
+            <div class="info-sub mono">hora diaria</div>
           </div>
         </div>
 
-        <!-- Members list -->
-        <div class="bg-white/10 border border-white/10 rounded-xl p-5 mb-4">
-          <h2 class="text-white font-semibold mb-3">Miembros</h2>
-          <div class="space-y-3">
+        <!-- Invite code -->
+        <div class="card invite">
+          <label class="label" for="invite-code">Código de invitación</label>
+          <div class="invite-row">
+            <input
+              id="invite-code"
+              class="input mono"
+              :value="league.invite_code"
+              readonly
+            />
+            <button type="button" class="btn btn-secondary invite-btn" @click="copyCode">
+              {{ copied ? "Copiado!" : "Copiar" }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Members -->
+        <section class="members">
+          <div class="meta mono members-head">MIEMBROS · {{ members.length }}</div>
+          <div class="rows">
             <div
-              v-for="member in members"
+              v-for="(member, index) in members"
               :key="member.id"
-              class="flex items-center justify-between"
+              class="member-row card"
+              :class="{ me: isMe(member) }"
             >
-              <div class="flex items-center gap-3">
-                <img
-                  v-if="member.avatar_url"
-                  :src="member.avatar_url"
-                  :alt="member.display_name || member.username"
-                  class="w-8 h-8 rounded-full object-cover"
-                />
-                <div
-                  v-else
-                  class="w-8 h-8 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-400 text-xs font-bold"
-                >
-                  {{ (member.display_name || member.username).charAt(0).toUpperCase() }}
+              <img
+                v-if="member.avatar_url"
+                :src="member.avatar_url"
+                :alt="memberName(member)"
+                class="member-photo"
+                :style="{ borderColor: rowColor(index) }"
+              />
+              <Avatar
+                v-else
+                :initials="initialsFor(member)"
+                :size="40"
+                :color="rowColor(index)"
+              />
+
+              <div class="member-info">
+                <div class="member-name">
+                  {{ memberName(member) }}
+                  <span v-if="member.role === 'owner'" class="crown" title="Propietario">👑</span>
+                  <span v-if="isMe(member)" class="tag tag-lime me-tag">TÚ</span>
                 </div>
-                <div>
-                  <p class="text-white text-sm font-medium">
-                    {{ member.display_name || member.username }}
-                    <span v-if="member.role === 'owner'" class="text-amber-400 text-xs ml-1">👑</span>
-                  </p>
-                  <p class="text-green-300/40 text-xs">{{ formatBudget(member.budget) }}</p>
-                </div>
+                <div class="member-budget mono">{{ formatBudget(member.budget) }}</div>
               </div>
-              <span class="text-green-300/40 text-xs capitalize">{{ member.role }}</span>
+
+              <span class="member-role mono">{{ member.role }}</span>
             </div>
           </div>
-        </div>
+        </section>
 
-        <!-- Delete button (owner only) -->
-        <div v-if="isOwner">
+        <!-- Delete (owner only) -->
+        <div v-if="isOwner" class="danger">
           <button
             v-if="!confirmDelete"
+            type="button"
+            class="btn btn-ghost danger-btn"
             @click="confirmDelete = true"
-            class="w-full py-3 bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold rounded-lg border border-red-500/30 transition-colors text-sm"
           >
             Eliminar liga
           </button>
-          <div v-else class="flex gap-2">
+          <div v-else class="danger-confirm">
             <button
-              @click="deleteLeague"
+              type="button"
+              class="btn danger-confirm-btn"
               :disabled="deleting"
-              class="flex-1 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
+              @click="deleteLeague"
             >
               {{ deleting ? "Eliminando..." : "Confirmar eliminación" }}
             </button>
-            <button
-              @click="confirmDelete = false"
-              class="px-4 py-3 bg-white/10 text-white rounded-lg text-sm"
-            >
+            <button type="button" class="btn btn-secondary" @click="confirmDelete = false">
               Cancelar
             </button>
           </div>
         </div>
       </template>
     </div>
-  </AppLayout>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import AppLayout from "@/layouts/AppLayout.vue";
+import AppShell from "@/design-system/AppShell.vue";
+import Avatar from "@/design-system/primitives/Avatar.vue";
+import { currentUserId } from "@/lib/auth";
 import api from "@/lib/api";
 
 interface League {
@@ -157,24 +167,51 @@ const copied = ref(false);
 const confirmDelete = ref(false);
 const deleting = ref(false);
 
-// Check if current user is the owner — we decode the user ID from the JWT payload
-const currentUserID = computed(() => {
-  const token = localStorage.getItem("token");
-  if (!token) return 0;
-  try {
-    const segment = token.split(".")[1];
-    if (!segment) return 0;
-    const payload = JSON.parse(atob(segment));
-    return payload.user_id || 0;
-  } catch {
-    return 0;
-  }
-});
+// Current user comes from the existing auth helper (decodes the JWT).
+const meId = currentUserId();
 
-const isOwner = computed(() => league.value?.created_by === currentUserID.value);
+const isOwner = computed(() => league.value?.created_by === meId);
+
+// Row accent cycled by index, per the design system position palette.
+const ROW_COLORS = ["var(--pos-mid)", "var(--pos-def)", "var(--pos-fwd)", "var(--pos-gk)"];
+function rowColor(index: number): string {
+  return ROW_COLORS[index % ROW_COLORS.length] ?? "var(--pos-mid)";
+}
+
+function isMe(member: Member): boolean {
+  return meId !== 0 && member.user_id === meId;
+}
+
+// Always prefer real identity — never a "Jugador #N" placeholder.
+function memberName(member: Member): string {
+  return member.display_name || member.username;
+}
+
+// Initials = first letter of the first two words of display_name,
+// falling back to the first two chars of username.
+function initialsFor(member: Member): string {
+  const name = member.display_name?.trim() ?? "";
+  if (name) {
+    const parts = name.split(/\s+/);
+    const initials = parts
+      .slice(0, 2)
+      .map((p) => p.charAt(0))
+      .join("");
+    return initials.toUpperCase();
+  }
+  return member.username.slice(0, 2).toUpperCase();
+}
 
 function formatBudget(amount: number): string {
-  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(amount);
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function budgetCompact(amount: number): string {
+  return `${Math.round(amount / 1_000_000)}M`;
 }
 
 async function copyCode() {
@@ -197,6 +234,7 @@ async function deleteLeague() {
   }
 }
 
+// Data wiring unchanged: same two GETs, same routes.
 onMounted(async () => {
   try {
     const id = route.params.id;
@@ -213,3 +251,245 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 760px;
+  color: var(--ink-100);
+}
+
+.back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  color: var(--ink-400);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.back:hover {
+  color: var(--ink-100);
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.meta {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.meta-lime {
+  color: var(--lime);
+  letter-spacing: 0.2em;
+}
+
+.title {
+  font-size: 64px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+/* Info strip */
+.info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.info-cell {
+  padding: 16px;
+}
+
+.info-label {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--ink-400);
+}
+
+.info-value {
+  font-size: 30px;
+  line-height: 1;
+  margin-top: 6px;
+  color: var(--ink-100);
+}
+
+.info-value.lime {
+  color: var(--lime);
+}
+
+.info-slash {
+  font-size: 16px;
+  color: var(--ink-400);
+}
+
+.info-sub {
+  font-size: 10px;
+  color: var(--ink-300);
+  margin-top: 4px;
+}
+
+/* Invite */
+.invite {
+  padding: 18px;
+}
+
+.invite-row {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-row .input {
+  letter-spacing: 0.18em;
+  color: var(--lime);
+}
+
+.invite-btn {
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+/* Members */
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.members-head {
+  letter-spacing: 0.15em;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-left: 3px solid transparent;
+}
+
+.member-row.me {
+  border-left: 3px solid var(--lime);
+  background: var(--lime-glow);
+}
+
+.member-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--lime);
+  flex-shrink: 0;
+}
+
+.member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.member-name {
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crown {
+  font-size: 12px;
+}
+
+.me-tag {
+  font-size: 9px;
+  padding: 1px 6px;
+}
+
+.member-budget {
+  font-size: 11px;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.member-role {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+/* Danger */
+.danger {
+  margin-top: 4px;
+}
+
+.danger-btn {
+  width: 100%;
+  color: var(--down);
+  border-color: rgba(255, 98, 98, 0.3);
+}
+
+.danger-btn:hover {
+  background: rgba(255, 98, 98, 0.1);
+}
+
+.danger-confirm {
+  display: flex;
+  gap: 8px;
+}
+
+.danger-confirm-btn {
+  flex: 1;
+  background: var(--down);
+  color: #fff;
+}
+
+.danger-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* States */
+.state {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.state-muted {
+  color: var(--ink-400);
+}
+
+.state-error {
+  color: var(--down);
+}
+
+@media (max-width: 767px) {
+  .title {
+    font-size: 40px;
+  }
+
+  .info {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
