@@ -14,7 +14,7 @@
        saveLineup calls PUT /api/v1/leagues/:id/matchdays/:number/lineup atomically.
 -->
 <template>
-  <AppLayout>
+  <AppShell>
     <div class="equipo-page">
 <!-- ── Header ── -->
       <div class="equipo-header">
@@ -223,15 +223,15 @@
         </div>
       </Teleport>
 </div>
-  </AppLayout>
+</AppShell>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue';
-import AppLayout from '@/layouts/AppLayout.vue';
 import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
 import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
+import AppShell from '@/design-system/AppShell.vue';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
