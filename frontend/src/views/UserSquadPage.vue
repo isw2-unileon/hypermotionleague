@@ -1,146 +1,120 @@
 <template>
-  <AppLayout>
-    <div class="px-4 pt-6 pb-4">
-      <div class="flex items-center justify-between mb-4">
-        <h1 class="text-xl font-semibold text-white">
-          Equipo de {{ userName }}
-        </h1>
-        <button
-          @click="router.back()"
-          class="text-sm text-green-300 hover:text-white transition-colors"
-        >
-          ← Volver
-        </button>
-      </div>
+  <AppShell>
+    <div class="squad">
+      <PitchSVG class="pitch-bg" />
 
-      <!-- Matchday selector -->
-      <select
-        v-model="selectedMatchdayNumber"
-        class="w-full bg-green-950/60 border border-white/10 text-white rounded-lg px-3 py-2 mb-4 text-sm"
-        @change="onMatchdayChange"
-      >
-        <option :value="null">General (Total)</option>
-        <option v-for="md in matchdays" :key="md.id" :value="md.number">
-          Jornada {{ md.number }} — {{ md.name }}
-        </option>
-      </select>
-
-      <!-- Loading -->
-      <div v-if="loading" class="text-center text-green-300/60 py-12 text-sm">
-        Cargando equipo...
-      </div>
-
-      <!-- Error -->
-      <div v-else-if="error" class="text-center text-red-400 py-12 text-sm">
-        {{ error }}
-      </div>
-
-      <!-- User info -->
-      <div
-        v-else-if="userStanding && selectedMatchdayNumber"
-        class="rounded-xl bg-green-950/40 border border-white/10 p-4 mb-4"
-      >
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm text-green-300/60">Posición</p>
-            <p class="text-2xl font-bold" :class="rankClass">
-              #{{ userStanding.rank }}
-            </p>
-          </div>
-          <div class="text-right">
-            <p class="text-sm text-green-300/60">Puntos</p>
-            <p class="text-2xl font-bold text-amber-400">
-              {{ userStanding.total_points }}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty states -->
-      <div
-        v-if="!loading && matchdays.length === 0"
-        class="text-center text-green-300/60 py-12 text-sm"
-      >
-        No hay jornadas creadas en esta liga todavía.
-      </div>
-
-      <div
-        v-else-if="!selectedMatchdayNumber"
-        class="text-center text-green-300/60 py-12 text-sm"
-      >
-        Selecciona una jornada para ver los jugadores
-      </div>
-
-      <div
-        v-else-if="!userStanding && !loading"
-        class="text-center text-green-300/60 py-8 text-sm"
-      >
-        No hay datos para esta jornada
-      </div>
-
-      <!-- Players table -->
-      <div
-        v-if="
-          userStanding &&
-          userStanding.players &&
-          userStanding.players.length > 0
-        "
-        class="rounded-xl overflow-hidden border border-white/10"
-      >
+      <div class="content">
         <!-- Header -->
-        <div
-          class="grid grid-cols-12 px-4 py-2 bg-green-950/80 text-green-300/60 text-xs font-semibold uppercase tracking-wide"
+        <header class="header">
+          <button type="button" class="back mono" @click="goBack">← Volver</button>
+          <div class="meta mono">{{ matchdayLabel }}</div>
+          <h1 class="title display">{{ userName }}</h1>
+          <div v-if="squadName" class="subtitle">{{ squadName }}</div>
+        </header>
+
+        <!-- Matchday selector -->
+        <select
+          v-model="selectedMatchdayNumber"
+          class="input md-select"
+          @change="onMatchdayChange"
         >
-          <span class="col-span-1">#</span>
-          <span class="col-span-5">Jugador</span>
-          <span class="col-span-3">Posición</span>
-          <span class="col-span-3 text-right">Pts</span>
+          <option :value="null">General (Total)</option>
+          <option v-for="md in matchdays" :key="md.id" :value="md.number">
+            Jornada {{ md.number }} — {{ md.name }}
+          </option>
+        </select>
+
+        <!-- Loading -->
+        <div v-if="loading" class="state state-muted">
+          Cargando equipo...
         </div>
 
-        <!-- Rows -->
+        <!-- Error -->
+        <div v-else-if="error" class="state state-error">
+          {{ error }}
+        </div>
+
+        <!-- User summary -->
         <div
-          v-for="(player, index) in userStanding.players"
-          :key="player.player_id"
-          class="grid grid-cols-12 items-center px-4 py-3 border-t border-white/5"
+          v-else-if="userStanding && selectedMatchdayNumber"
+          class="card summary"
         >
-          <span class="col-span-1 text-sm text-white/50">
-            {{ index + 1 }}
-          </span>
-          <div class="col-span-5">
-            <p class="text-sm font-medium text-white">
-              {{ player.first_name }} {{ player.last_name }}
-            </p>
-            <p class="text-xs text-green-300/50">{{ player.team_name }}</p>
+          <div class="summary-block">
+            <div class="summary-label mono">POSICIÓN</div>
+            <div class="summary-value display tnum" :style="{ color: rankColor }">
+              #{{ userStanding.rank }}
+            </div>
           </div>
-          <span
-            class="col-span-3 text-sm"
-            :class="positionClass(player.position)"
-          >
-            {{ player.position }}
-          </span>
-          <span
-            class="col-span-3 text-right text-sm font-semibold text-amber-400"
-          >
-            {{ player.points }}
-          </span>
+          <div class="summary-block summary-right">
+            <div class="summary-label mono">PUNTOS</div>
+            <div class="summary-value display tnum summary-points">
+              {{ userStanding.total_points }}
+            </div>
+          </div>
         </div>
 
-        <!-- Empty players -->
+        <!-- Empty states -->
         <div
-          v-if="userStanding.players.length === 0"
-          class="text-center text-green-300/60 py-8 text-sm border-t border-white/5"
+          v-if="!loading && matchdays.length === 0"
+          class="state state-muted"
+        >
+          No hay jornadas creadas en esta liga todavía.
+        </div>
+
+        <div
+          v-else-if="!selectedMatchdayNumber"
+          class="state state-muted"
+        >
+          Selecciona una jornada para ver los jugadores
+        </div>
+
+        <div
+          v-else-if="!userStanding && !loading"
+          class="state state-muted"
+        >
+          No hay datos para esta jornada
+        </div>
+
+        <!-- Players grouped by position -->
+        <div
+          v-if="userStanding && userStanding.players && userStanding.players.length > 0"
+          class="groups"
+        >
+          <section v-for="group in playerGroups" :key="group.key" class="group">
+            <div
+              v-for="player in group.players"
+              :key="player.player_id"
+              class="player-row"
+            >
+              <span class="pos" :class="group.cls">{{ group.label }}</span>
+              <div class="player-info">
+                <div class="player-name">
+                  {{ player.first_name }} {{ player.last_name }}
+                </div>
+                <div class="player-team mono">{{ player.team_name }}</div>
+              </div>
+              <span class="player-points display tnum">{{ player.points }}</span>
+            </div>
+          </section>
+        </div>
+
+        <!-- No players for this matchday -->
+        <div
+          v-else-if="userStanding && selectedMatchdayNumber && !loading"
+          class="state state-muted"
         >
           Este usuario no tiene jugadores en su alineación para esta jornada.
         </div>
       </div>
     </div>
-  </AppLayout>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import AppLayout from "@/layouts/AppLayout.vue";
+import AppShell from "@/design-system/AppShell.vue";
+import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
 
 interface Matchday {
@@ -186,26 +160,66 @@ const userName = ref("");
 const loading = ref(false);
 const error = ref("");
 
-const rankClass = computed(() => {
-  if (!userStanding.value) return "text-white";
-  const rank = userStanding.value.rank;
-  if (rank === 1) return "text-amber-400";
-  if (rank <= 3) return "text-green-300";
-  return "text-white/70";
+// Position groups: backend code → display badge + .pos color class.
+const POSITION_META = [
+  { key: "GK", label: "POR", cls: "pos-gk" },
+  { key: "DEF", label: "DEF", cls: "pos-def" },
+  { key: "MID", label: "MED", cls: "pos-mid" },
+  { key: "FWD", label: "DEL", cls: "pos-fwd" },
+] as const;
+
+interface PositionGroup {
+  key: string;
+  label: string;
+  cls: string;
+  players: StandingPlayer[];
+}
+
+const matchdayLabel = computed(() =>
+  selectedMatchdayNumber.value !== null
+    ? `EQUIPO · J·${selectedMatchdayNumber.value}`
+    : "EQUIPO",
+);
+
+// No dedicated squad-name field from the backend yet; fall back to @username.
+const squadName = computed(() => {
+  const username = userStanding.value?.username;
+  return username ? `@${username}` : "";
 });
 
-function positionClass(position: string): string {
-  switch (position) {
-    case "GK":
-      return "text-orange-400";
-    case "DEF":
-      return "text-blue-400";
-    case "MID":
-      return "text-green-400";
-    case "FWD":
-      return "text-red-400";
-    default:
-      return "text-white/70";
+const rankColor = computed(() => {
+  const rank = userStanding.value?.rank;
+  if (rank === undefined) return "var(--ink-100)";
+  if (rank === 1) return "var(--lime)";
+  if (rank <= 3) return "var(--lime-soft)";
+  return "var(--ink-100)";
+});
+
+const playerGroups = computed<PositionGroup[]>(() => {
+  const players = userStanding.value?.players ?? [];
+  const known = new Set<string>(POSITION_META.map((m) => m.key));
+
+  const groups: PositionGroup[] = POSITION_META.map((m) => ({
+    key: m.key,
+    label: m.label,
+    cls: m.cls,
+    players: players.filter((p) => p.position === m.key),
+  })).filter((g) => g.players.length > 0);
+
+  // Safety net: never silently drop a player with an unexpected position code.
+  const others = players.filter((p) => !known.has(p.position));
+  if (others.length > 0) {
+    groups.push({ key: "OTHER", label: "—", cls: "pos-other", players: others });
+  }
+
+  return groups;
+});
+
+function goBack() {
+  if (window.history.length > 1) {
+    router.back();
+  } else {
+    router.push({ path: "/standings", query: route.query });
   }
 }
 
@@ -282,3 +296,179 @@ async function fetchUserStanding() {
   }
 }
 </script>
+
+<style scoped>
+.squad {
+  position: relative;
+  min-height: 100%;
+  color: var(--ink-100);
+}
+
+.pitch-bg {
+  opacity: 0.08;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--ink-300);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.back:hover {
+  color: var(--lime);
+}
+
+.meta {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.title {
+  font-size: 64px;
+  line-height: 0.9;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--ink-300);
+}
+
+/* Matchday select — reuses the global .input token styling */
+.md-select {
+  max-width: 360px;
+  cursor: pointer;
+}
+
+/* Summary card */
+.summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.summary-right {
+  text-align: right;
+}
+
+.summary-label {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--ink-400);
+}
+
+.summary-value {
+  font-size: 32px;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.summary-points {
+  color: var(--lime);
+}
+
+/* States */
+.state {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.state-muted {
+  color: var(--ink-400);
+}
+
+.state-error {
+  color: var(--down);
+}
+
+/* Player groups */
+.groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  background: var(--ink-800);
+  border: 1px solid var(--ink-700);
+  border-radius: var(--r-sm);
+}
+
+.player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-100);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-team {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.player-points {
+  font-size: 20px;
+  line-height: 1;
+  color: var(--ink-100);
+  text-align: right;
+}
+
+/* Fallback badge for unexpected position codes */
+.pos-other {
+  background: var(--ink-500);
+  color: var(--ink-100);
+}
+
+@media (max-width: 767px) {
+  .title {
+    font-size: 40px;
+  }
+}
+</style>
