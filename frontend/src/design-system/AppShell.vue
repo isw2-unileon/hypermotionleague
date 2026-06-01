@@ -40,7 +40,6 @@
       </div>
 
       <button type="button" class="btn btn-ghost logout-btn" @click="onLogout">
-<<<<<<< Updated upstream
         <svg
           class="logout-icon"
           width="15"
@@ -51,12 +50,6 @@
           stroke-width="1.5"
         >
           <path d="M6 14 H3 a1 1 0 0 1 -1 -1 V3 a1 1 0 0 1 1 -1 h3 M10.5 11 L13.5 8 L10.5 5 M13.5 8 H6" />
-=======
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-          <path d="M6 2 H3 V14 H6" />
-          <path d="M10 5 L13 8 L10 11" />
-          <path d="M13 8 H6" />
->>>>>>> Stashed changes
         </svg>
         Cerrar sesión
       </button>
@@ -136,17 +129,13 @@ function onTabSelect(id: NavId): void {
   if (item && item.route !== route.path) router.push(item.route);
 }
 
-<<<<<<< Updated upstream
-function onLogout(): void {
-  void logout();
-=======
+
 // No dedicated auth store: the app's JWT lives in localStorage["token"]
 // (see lib/api.ts, which clears it the same way on a 401). Logout drops the
 // token and returns the user to the auth screen.
 function onLogout(): void {
   localStorage.removeItem("token");
   router.push("/auth");
->>>>>>> Stashed changes
 }
 </script>
 
