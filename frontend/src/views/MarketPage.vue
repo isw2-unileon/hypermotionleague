@@ -1,202 +1,170 @@
 <template>
-  <div class="market frame">
-    <div class="halftone-bg"></div>
+  <AppShell>
+    <div class="market">
+      <StatusBar v-if="isMobile" />
 
-    <div class="shell" :class="{ mobile: isMobile }">
-      <!--
-        TODO: replace this inline sidebar with <AppShell> once D2.1 lands.
-        AppShell.vue does not exist yet, so per the brief the desktop nav is a
-        minimal inline sidebar matching Mercado.jsx, and mobile uses the TabBar
-        primitive at the bottom.
-      -->
-      <aside v-if="!isMobile" class="sidebar">
-        <Logo :size="26" />
-        <div class="sidebar-gap"></div>
-        <button
-          v-for="item in navItems"
-          :key="item.to"
-          class="nav-item"
-          :class="{ active: item.active }"
-          @click="go(item.to)"
-        >
-          <span class="nav-dot" :class="{ active: item.active }"></span>
-          <span class="nav-label">{{ item.label }}</span>
-          <span v-if="item.active && activeBidCount > 0" class="tag tag-lime nav-badge">{{ activeBidCount }}</span>
+      <!-- header -->
+      <header class="page-head" :class="{ mobile: isMobile }">
+        <div class="head-left">
+          <div class="mono kicker">
+            <span v-if="!isMobile">◆ </span>{{ headerMeta }}
+          </div>
+          <h1 class="display title">MERCADO<span v-if="!isMobile">.</span></h1>
+          <!-- League picker: there is no active-league concept in the app yet,
+               so the market resolves its league from ?league=<id> (else the
+               user's first league). This selector lets the user switch without
+               hardcoding an id. TODO: drive from a shared active-league store. -->
+          <div v-if="leagues.length > 1" class="league-pick">
+            <span class="mono pick-label">LIGA</span>
+            <select class="pick-select mono" :value="leagueId ?? ''" @change="onLeagueChange">
+              <option v-for="l in leagues" :key="l.id" :value="l.id">{{ l.name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="head-right">
+          <div class="saldo">
+            <div class="mono col-label">SALDO</div>
+            <div class="display tnum saldo-value">{{ millions(balance) }}</div>
+          </div>
+          <div v-if="!isMobile && nextCloseLabel" class="card cierra-card">
+            <span class="pulse"></span>
+            <div>
+              <div class="mono col-label">CIERRA EN</div>
+              <div class="display tnum cierra-value">{{ nextCloseLabel }}</div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- in-page tabs -->
+      <div class="ptabs" :class="{ mobile: isMobile }">
+        <button class="ptab mono" :class="{ active: activeTab === 'mercado' }" @click="activeTab = 'mercado'">
+          MERCADO · {{ mercadoCount }}
         </button>
-      </aside>
-
-      <div class="main">
-        <StatusBar v-if="isMobile" />
-
-        <!-- header -->
-        <header class="page-head" :class="{ mobile: isMobile }">
-          <div class="head-left">
-            <div class="mono kicker">
-              <span v-if="!isMobile">◆ </span>{{ headerMeta }}
-            </div>
-            <h1 class="display title">MERCADO<span v-if="!isMobile">.</span></h1>
-            <!-- League picker: there is no active-league concept in the app yet,
-                 so the market resolves its league from ?league=<id> (else the
-                 user's first league). This selector lets the user switch without
-                 hardcoding an id. TODO: drive from a shared active-league store. -->
-            <div v-if="leagues.length > 1" class="league-pick">
-              <span class="mono pick-label">LIGA</span>
-              <select class="pick-select mono" :value="leagueId ?? ''" @change="onLeagueChange">
-                <option v-for="l in leagues" :key="l.id" :value="l.id">{{ l.name }}</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="head-right">
-            <div class="saldo">
-              <div class="mono col-label">SALDO</div>
-              <div class="display tnum saldo-value">{{ millions(balance) }}</div>
-            </div>
-            <div v-if="!isMobile && nextCloseLabel" class="card cierra-card">
-              <span class="pulse"></span>
-              <div>
-                <div class="mono col-label">CIERRA EN</div>
-                <div class="display tnum cierra-value">{{ nextCloseLabel }}</div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        <!-- in-page tabs -->
-        <div class="ptabs" :class="{ mobile: isMobile }">
-          <button class="ptab mono" :class="{ active: activeTab === 'mercado' }" @click="activeTab = 'mercado'">
-            MERCADO · {{ mercadoCount }}
-          </button>
-          <button class="ptab mono" :class="{ active: activeTab === 'pujas' }" @click="activeTab = 'pujas'">
-            MIS PUJAS · {{ activeBidCount }}/{{ MAX_ACTIVE_BIDS }}
-          </button>
-          <div v-if="!isMobile && activeTab === 'mercado'" class="tab-tools">
-            <input v-model="search" class="input search" placeholder="Buscar jugador…" />
-          </div>
-        </div>
-
-        <!-- mobile countdown banner -->
-        <div v-if="isMobile && nextCloseLabel" class="cierra-banner card">
-          <span class="pulse"></span>
-          <span class="mono banner-label">CIERRA EN</span>
-          <span class="display tnum banner-value">{{ nextCloseLabel }}</span>
-        </div>
-
-        <!-- position filters (mercado tab) -->
-        <div v-if="activeTab === 'mercado'" class="filters">
-          <button
-            v-for="f in filters"
-            :key="f.label"
-            class="filter-pill mono"
-            :class="{ active: posFilter === f.value }"
-            @click="posFilter = f.value"
-          >
-            {{ f.label }}
-          </button>
-        </div>
-
-        <!-- content -->
-        <div class="content">
-          <div v-if="loading" class="state mono">CARGANDO MERCADO…</div>
-          <div v-else-if="error" class="state error">{{ error }}</div>
-          <div v-else-if="leagueId == null" class="state mono">
-            No perteneces a ninguna liga todavía.
-            <button class="btn btn-secondary join-btn" @click="go('/leagues')">Ver mis ligas</button>
-          </div>
-
-          <!-- MERCADO -->
-          <template v-else-if="activeTab === 'mercado'">
-            <div v-if="filteredListings.length === 0" class="state mono">
-              {{ mercadoCount === 0 ? "No hay jugadores en el mercado ahora mismo." : "Ningún jugador coincide con el filtro." }}
-            </div>
-            <div v-else class="list">
-              <PlayerCard
-                v-for="l in filteredListings"
-                :key="l.id"
-                :listing="l"
-                :now="now"
-                :mobile="isMobile"
-                :mine="myBidByListing.has(l.id)"
-                @bid="openBid"
-              />
-            </div>
-          </template>
-
-          <!-- MIS PUJAS -->
-          <template v-else>
-            <!-- Status summary. PUJAS ACTIVAS + TOTAL COMPROMETIDO are directly
-                 derivable. GANANDO/SUPERADA are derived from each listing's
-                 visible highest_bid (the backend has no per-bid status field —
-                 Phase 0 #7), so they reflect "is my bid the current top?". -->
-            <div class="summary" :class="{ mobile: isMobile }">
-              <div class="card summary-card">
-                <div class="mono col-label">PUJAS ACTIVAS</div>
-                <div class="display tnum summary-value">{{ activeBidCount }}</div>
-                <div class="mono summary-sub">de {{ MAX_ACTIVE_BIDS }} disponibles</div>
-              </div>
-              <div class="card summary-card">
-                <div class="mono col-label">GANANDO</div>
-                <div class="display tnum summary-value lime">{{ leadingCount }}</div>
-                <div class="mono summary-sub">según puja top visible</div>
-              </div>
-              <div class="card summary-card">
-                <div class="mono col-label">SUPERADA</div>
-                <div class="display tnum summary-value down">{{ outbidCount }}</div>
-                <div class="mono summary-sub">por debajo del top</div>
-              </div>
-              <div class="card summary-card">
-                <div class="mono col-label">TOTAL COMPROMETIDO</div>
-                <div class="display tnum summary-value">{{ millions(committed) }}</div>
-                <div class="mono summary-sub">de {{ millions(balance) }} saldo</div>
-              </div>
-            </div>
-
-            <div v-if="bids.length === 0" class="state mono">Aún no has pujado por ningún jugador.</div>
-            <div v-else class="list">
-              <div
-                v-for="b in bids"
-                :key="b.id"
-                class="bid-row card"
-                :style="{ borderLeft: `3px solid ${rowAccent(b)}` }"
-              >
-                <PlayerPhoto :team="teamShort(b.player.team_name)" :color="teamColor(b.player.team_name)" :size="isMobile ? 44 : 56" />
-                <div class="bid-id">
-                  <div class="bid-id-top">
-                    <span class="pos" :class="positionMeta(b.player.position).cssClass">{{ positionMeta(b.player.position).label }}</span>
-                    <TeamCrest :short="teamShort(b.player.team_name)" :color="teamColor(b.player.team_name)" :size="18" />
-                    <span class="bid-name">{{ fullName(b.player) }}</span>
-                    <span
-                      v-if="statusInfo(b)"
-                      class="mono status-chip"
-                      :style="{ color: statusInfo(b)!.color, borderColor: statusInfo(b)!.color }"
-                    >● {{ statusInfo(b)!.label }}</span>
-                  </div>
-                  <div class="mono bid-sub">
-                    <template v-if="bidCountdown(b)">Cierra en <span class="bid-sub-strong">{{ bidCountdown(b) }}</span></template>
-                    <template v-else>Subasta cerrada</template>
-                  </div>
-                </div>
-                <div class="col bid-amount-col">
-                  <div class="mono col-label">TU PUJA</div>
-                  <div class="display tnum bid-amount">{{ millions(b.amount) }}</div>
-                </div>
-                <div class="col">
-                  <div class="mono col-label">PUJA TOP</div>
-                  <div class="display tnum bid-top" :style="{ color: rowAccent(b) }">
-                    {{ bidTop(b) != null ? millions(bidTop(b)!) : "—" }}
-                  </div>
-                </div>
-                <button class="btn btn-secondary row-btn" :disabled="!isRaisable(b)" @click="openRaise(b)">Subir</button>
-                <button class="btn btn-ghost row-btn cancel-btn" @click="cancelBid(b)">Cancelar</button>
-              </div>
-            </div>
-          </template>
+        <button class="ptab mono" :class="{ active: activeTab === 'pujas' }" @click="activeTab = 'pujas'">
+          MIS PUJAS · {{ activeBidCount }}/{{ MAX_ACTIVE_BIDS }}
+        </button>
+        <div v-if="!isMobile && activeTab === 'mercado'" class="tab-tools">
+          <input v-model="search" class="input search" placeholder="Buscar jugador…" />
         </div>
       </div>
-    </div>
 
-    <div v-if="isMobile" class="mobile-tabbar">
-      <TabBar active="mercado" @select="onBottomTab" />
+      <!-- mobile countdown banner -->
+      <div v-if="isMobile && nextCloseLabel" class="cierra-banner card">
+        <span class="pulse"></span>
+        <span class="mono banner-label">CIERRA EN</span>
+        <span class="display tnum banner-value">{{ nextCloseLabel }}</span>
+      </div>
+
+      <!-- position filters (mercado tab) -->
+      <div v-if="activeTab === 'mercado'" class="filters">
+        <button
+          v-for="f in filters"
+          :key="f.label"
+          class="filter-pill mono"
+          :class="{ active: posFilter === f.value }"
+          @click="posFilter = f.value"
+        >
+          {{ f.label }}
+        </button>
+      </div>
+
+      <!-- content -->
+      <div v-if="loading" class="state mono">CARGANDO MERCADO…</div>
+      <div v-else-if="error" class="state error">{{ error }}</div>
+      <div v-else-if="leagueId == null" class="state mono">
+        No perteneces a ninguna liga todavía.
+        <button class="btn btn-secondary join-btn" @click="go('/leagues')">Ver mis ligas</button>
+      </div>
+
+      <!-- MERCADO -->
+      <template v-else-if="activeTab === 'mercado'">
+        <div v-if="filteredListings.length === 0" class="state mono">
+          {{ mercadoCount === 0 ? "No hay jugadores en el mercado ahora mismo." : "Ningún jugador coincide con el filtro." }}
+        </div>
+        <div v-else class="list">
+          <PlayerCard
+            v-for="l in filteredListings"
+            :key="l.id"
+            :listing="l"
+            :now="now"
+            :mobile="isMobile"
+            :mine="myBidByListing.has(l.id)"
+            @bid="openBid"
+          />
+        </div>
+      </template>
+
+      <!-- MIS PUJAS -->
+      <template v-else>
+        <!-- Status summary. PUJAS ACTIVAS + TOTAL COMPROMETIDO are directly
+             derivable. GANANDO/SUPERADA are derived from each listing's
+             visible highest_bid (the backend has no per-bid status field —
+             Phase 0 #7), so they reflect "is my bid the current top?". -->
+        <div class="summary" :class="{ mobile: isMobile }">
+          <div class="card summary-card">
+            <div class="mono col-label">PUJAS ACTIVAS</div>
+            <div class="display tnum summary-value">{{ activeBidCount }}</div>
+            <div class="mono summary-sub">de {{ MAX_ACTIVE_BIDS }} disponibles</div>
+          </div>
+          <div class="card summary-card">
+            <div class="mono col-label">GANANDO</div>
+            <div class="display tnum summary-value lime">{{ leadingCount }}</div>
+            <div class="mono summary-sub">según puja top visible</div>
+          </div>
+          <div class="card summary-card">
+            <div class="mono col-label">SUPERADA</div>
+            <div class="display tnum summary-value down">{{ outbidCount }}</div>
+            <div class="mono summary-sub">por debajo del top</div>
+          </div>
+          <div class="card summary-card">
+            <div class="mono col-label">TOTAL COMPROMETIDO</div>
+            <div class="display tnum summary-value">{{ millions(committed) }}</div>
+            <div class="mono summary-sub">de {{ millions(balance) }} saldo</div>
+          </div>
+        </div>
+
+        <div v-if="bids.length === 0" class="state mono">Aún no has pujado por ningún jugador.</div>
+        <div v-else class="list">
+          <div
+            v-for="b in bids"
+            :key="b.id"
+            class="bid-row card"
+            :style="{ borderLeft: `3px solid ${rowAccent(b)}` }"
+          >
+            <PlayerPhoto :team="teamShort(b.player.team_name)" :color="teamColor(b.player.team_name)" :size="isMobile ? 44 : 56" />
+            <div class="bid-id">
+              <div class="bid-id-top">
+                <span class="pos" :class="positionMeta(b.player.position).cssClass">{{ positionMeta(b.player.position).label }}</span>
+                <TeamCrest :short="teamShort(b.player.team_name)" :color="teamColor(b.player.team_name)" :size="18" />
+                <span class="bid-name">{{ fullName(b.player) }}</span>
+                <span
+                  v-if="statusInfo(b)"
+                  class="mono status-chip"
+                  :style="{ color: statusInfo(b)!.color, borderColor: statusInfo(b)!.color }"
+                >● {{ statusInfo(b)!.label }}</span>
+              </div>
+              <div class="mono bid-sub">
+                <template v-if="bidCountdown(b)">Cierra en <span class="bid-sub-strong">{{ bidCountdown(b) }}</span></template>
+                <template v-else>Subasta cerrada</template>
+              </div>
+            </div>
+            <div class="col bid-amount-col">
+              <div class="mono col-label">TU PUJA</div>
+              <div class="display tnum bid-amount">{{ millions(b.amount) }}</div>
+            </div>
+            <div class="col">
+              <div class="mono col-label">PUJA TOP</div>
+              <div class="display tnum bid-top" :style="{ color: rowAccent(b) }">
+                {{ bidTop(b) != null ? millions(bidTop(b)!) : "—" }}
+              </div>
+            </div>
+            <button class="btn btn-secondary row-btn" :disabled="!isRaisable(b)" @click="openRaise(b)">Subir</button>
+            <button class="btn btn-ghost row-btn cancel-btn" @click="cancelBid(b)">Cancelar</button>
+          </div>
+        </div>
+      </template>
     </div>
 
     <BidModal
@@ -213,7 +181,7 @@
       @placed="onPlaced"
       @close="closeModal"
     />
-  </div>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
@@ -221,9 +189,8 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
-import Logo from "@/design-system/primitives/Logo.vue";
+import AppShell from "@/design-system/AppShell.vue";
 import StatusBar from "@/design-system/primitives/StatusBar.vue";
-import TabBar from "@/design-system/primitives/TabBar.vue";
 import PlayerPhoto from "@/design-system/primitives/PlayerPhoto.vue";
 import TeamCrest from "@/design-system/primitives/TeamCrest.vue";
 import PlayerCard from "@/design-system/components/PlayerCard.vue";
@@ -279,13 +246,6 @@ const filters: { label: string; value: PlayerPosition | null }[] = [
   { label: "MED", value: "MID" },
   { label: "DEL", value: "FWD" },
 ];
-
-const navItems = computed(() => [
-  { label: "Mis Ligas", to: "/leagues", active: false },
-  { label: "Clasificación", to: "/standings", active: false },
-  { label: "Mi Equipo", to: "/team", active: false },
-  { label: "Mercado", to: "/market", active: true },
-]);
 
 const headerMeta = computed(() => {
   const parts: string[] = [];
@@ -464,18 +424,6 @@ function go(to: string): void {
   if (to !== route.path) router.push(to);
 }
 
-function onBottomTab(id: string): void {
-  // id is the TabBar's TabId; typed loosely to avoid importing a type from an SFC.
-  const map: Record<string, string> = {
-    ligas: "/leagues",
-    clasif: "/standings",
-    equipo: "/team",
-    mercado: "/market",
-  };
-  const target = map[id];
-  if (target) go(target);
-}
-
 async function onLeagueChange(e: Event): Promise<void> {
   const value = Number((e.target as HTMLSelectElement).value);
   if (Number.isNaN(value) || value === leagueId.value) return;
@@ -524,91 +472,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* Content column — AppShell's slot (<main>) provides the page padding,
+   scrolling and background, so this is just a flex column. */
 .market {
-  min-height: 100vh;
-  position: relative;
-}
-
-.shell {
-  position: relative;
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  height: 100vh; /* desktop: pin the frame, scroll only the list */
-}
-.shell.mobile {
-  display: block;
-  height: auto;
-  min-height: 100vh;
-  padding-bottom: 84px; /* room for the fixed TabBar */
-}
-
-.mobile-tabbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 40;
-}
-
-/* sidebar */
-.sidebar {
-  background: var(--ink-850);
-  border-right: 1px solid var(--ink-700);
-  padding: 32px 20px;
-}
-.sidebar-gap {
-  height: 32px;
-}
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: var(--ink-200);
-  font-size: 13px;
-  font-weight: 500;
-  margin-bottom: 4px;
-  cursor: pointer;
-  text-align: left;
-}
-.nav-item.active {
-  background: var(--ink-700);
-  color: var(--lime);
-}
-.nav-dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-  background: var(--ink-500);
-  opacity: 0.5;
-}
-.nav-dot.active {
-  background: var(--lime);
-  opacity: 1;
-}
-.nav-label {
-  flex: 1;
-}
-.nav-badge {
-  font-size: 9px;
-  padding: 1px 5px;
-}
-
-/* main */
-.main {
-  padding: 32px 48px;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow: hidden; /* desktop: contain the scrolling list */
-}
-.shell.mobile .main {
-  padding: 0 20px;
-  overflow: visible;
 }
 
 .page-head {
@@ -784,15 +653,6 @@ onUnmounted(() => {
   border-color: var(--lime);
 }
 
-/* content */
-.content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto; /* desktop: only the list scrolls */
-}
-.shell.mobile .content {
-  overflow-y: visible;
-}
 .list {
   display: flex;
   flex-direction: column;
