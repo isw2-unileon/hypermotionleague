@@ -379,3 +379,103 @@ func (r *MarketRepo) PlaceBidTx(ctx context.Context, leagueID int64, bid *models
 	// 5. Confirmar transacción
 	return tx.Commit(ctx)
 }
+
+// ResolveListingTx resolves a single expired listing inside one transaction.
+// Mirrors the PlaceBidTx discipline: BEGIN → FOR UPDATE → mutations → COMMIT.
+// If there is a winning bid: assign the player, deduct budget, mark bids.
+// If there are no bids: just close the listing.
+func (r *MarketRepo) ResolveListingTx(ctx context.Context, listing models.MarketListing) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 1. Lock the listing row to prevent concurrent resolution
+	var status string
+	err = tx.QueryRow(ctx, `
+		SELECT status FROM market_listings
+		WHERE id = $1
+		FOR UPDATE
+	`, listing.ID).Scan(&status)
+	if err != nil {
+		return fmt.Errorf("lock listing: %w", err)
+	}
+	// Already resolved by another process
+	if status != "active" {
+		return nil
+	}
+
+	// 2. Find the highest active bid for this listing
+	var winnerUserID int64
+	var winnerBidID int64
+	var winnerAmount int
+	err = tx.QueryRow(ctx, `
+		SELECT id, user_id, amount
+		FROM bids
+		WHERE listing_id = $1 AND status = 'active'
+		ORDER BY amount DESC, placed_at ASC
+		LIMIT 1
+	`, listing.ID).Scan(&winnerBidID, &winnerUserID, &winnerAmount)
+
+	hasBids := true
+	if errors.Is(err, pgx.ErrNoRows) {
+		hasBids = false
+	} else if err != nil {
+		return fmt.Errorf("find highest bid: %w", err)
+	}
+
+	if hasBids {
+		// 3a. Lock the winner's member row (same pattern as PlaceBidTx)
+		var budget int
+		err = tx.QueryRow(ctx, `
+			SELECT budget FROM league_members
+			WHERE league_id = $1 AND user_id = $2
+			FOR UPDATE
+		`, listing.LeagueID, winnerUserID).Scan(&budget)
+		if err != nil {
+			return fmt.Errorf("lock winner member row: %w", err)
+		}
+
+		// 3b. Assign the player to the winner's team
+		if _, err = tx.Exec(ctx, `
+			INSERT INTO team_players (league_id, user_id, player_id, purchase_price)
+			VALUES ($1, $2, $3, $4)
+		`, listing.LeagueID, winnerUserID, listing.PlayerID, winnerAmount); err != nil {
+			return fmt.Errorf("assign player to winner: %w", err)
+		}
+
+		// 3c. Deduct the bid amount from the winner's budget
+		if _, err = tx.Exec(ctx, `
+			UPDATE league_members SET budget = budget - $1
+			WHERE league_id = $2 AND user_id = $3
+		`, winnerAmount, listing.LeagueID, winnerUserID); err != nil {
+			return fmt.Errorf("deduct winner budget: %w", err)
+		}
+
+		// 3d. Mark the winning bid
+		if _, err = tx.Exec(ctx, `
+			UPDATE bids SET status = 'won' WHERE id = $1
+		`, winnerBidID); err != nil {
+			return fmt.Errorf("mark winning bid: %w", err)
+		}
+
+		// 3e. Mark all other active bids on this listing as lost
+		if _, err = tx.Exec(ctx, `
+			UPDATE bids SET status = 'lost'
+			WHERE listing_id = $1 AND status = 'active' AND id != $2
+		`, listing.ID, winnerBidID); err != nil {
+			return fmt.Errorf("mark losing bids: %w", err)
+		}
+	}
+
+	// 4. Close the listing
+	if _, err = tx.Exec(ctx, `
+		UPDATE market_listings SET status = 'closed' WHERE id = $1
+	`, listing.ID); err != nil {
+		return fmt.Errorf("close listing: %w", err)
+	}
+
+	// 5. Commit
+	return tx.Commit(ctx)
+}
