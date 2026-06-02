@@ -1,18 +1,5 @@
 <template>
   <div class="app-shell">
-    <!-- Mobile-only top bar: the TabBar already holds the 4 nav items, so the
-         logout action lives here instead. Hidden on desktop. -->
-    <header class="mobile-topbar">
-      <button type="button" class="logout-mobile" @click="onLogout">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-          <path d="M6 2 H3 V14 H6" />
-          <path d="M10 5 L13 8 L10 11" />
-          <path d="M13 8 H6" />
-        </svg>
-        Cerrar sesión
-      </button>
-    </header>
-
     <aside class="sidebar">
       <Logo :size="26" />
       <div class="sidebar-gap" />
@@ -239,55 +226,7 @@ function onLogout(): void {
   margin-top: 2px;
 }
 
-/* Desktop logout — sits at the very bottom of the sidebar, visually distinct
-   from the nav items. */
-.logout-btn {
-  margin-top: 12px;
-  width: 100%;
-  font-size: 13px;
-  color: var(--ink-300);
-}
-
-.logout-btn:hover {
-  background: transparent;
-  color: var(--down);
-  border-color: var(--down);
-}
-
-/* Mobile top bar (hidden on desktop) */
-.mobile-topbar {
-  display: none;
-}
-
-.logout-mobile {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  background: transparent;
-  border: none;
-  font-family: var(--f-ui);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink-300);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.logout-mobile:hover {
-  color: var(--down);
-}
-
-.main {
-  padding: 40px 56px;
-  overflow-y: auto;
-}
-
-.mobile-tabbar {
-  display: none;
-}
-
-/* Logout — reuses the .btn / .btn-ghost tokens; only layout is set here.
+/* Logout — reuses the .btn / .btn-ghost tokens; only layout/colour set here.
    Full width at the bottom of the sidebar, aligned with the nav items. */
 .logout-btn {
   width: 100%;
@@ -297,14 +236,30 @@ function onLogout(): void {
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 500;
+  color: var(--ink-300);
+}
+
+.logout-btn:hover {
+  background: transparent;
+  color: var(--down);
+  border-color: var(--down);
 }
 
 .logout-icon {
   flex-shrink: 0;
 }
 
-/* Shell-owned top bar, only used on mobile (sidebar is hidden there). */
+.main {
+  padding: 40px 56px;
+  overflow-y: auto;
+}
+
+/* Hidden on desktop: the sidebar carries its own logout there. */
 .mobile-topbar {
+  display: none;
+}
+
+.mobile-tabbar {
   display: none;
 }
 
@@ -318,14 +273,24 @@ function onLogout(): void {
     display: none;
   }
 
+  /* Single mobile header: Logo on the left, "Salir" on the right. */
   .mobile-topbar {
     display: flex;
-    justify-content: flex-end;
     align-items: center;
-    padding: 10px 16px;
+    justify-content: space-between;
+    padding: 12px 20px;
     background: var(--ink-850);
     border-bottom: 1px solid var(--ink-700);
     flex-shrink: 0;
+  }
+
+  /* Compact logout for the mobile top bar (overrides the sidebar layout). */
+  .logout-btn-mobile {
+    width: auto;
+    margin-top: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+    gap: 8px;
   }
 
   .main {
@@ -337,25 +302,6 @@ function onLogout(): void {
   .mobile-tabbar {
     display: flex;
     flex-shrink: 0;
-  }
-
-  .mobile-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 20px;
-    background: var(--ink-850);
-    border-bottom: 1px solid var(--ink-700);
-    flex-shrink: 0;
-  }
-
-  /* Compact variant for the mobile top bar (overrides the sidebar layout). */
-  .logout-btn-mobile {
-    width: auto;
-    margin-top: 0;
-    padding: 8px 12px;
-    font-size: 12px;
-    gap: 8px;
   }
 }
 </style>
