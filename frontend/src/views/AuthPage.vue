@@ -2,10 +2,7 @@
   <div class="frame auth-frame">
     <div class="halftone-bg" />
 
-    <!-- Mobile-only system status row at the very top, per Login.jsx LoginMobile -->
-    <StatusBar class="mobile-only status-bar-slot" />
-
-    <div class="auth-grid">
+      <div class="auth-grid">
       <!-- ===== HERO (desktop: left panel; mobile: top stack) ===== -->
       <section class="hero-panel">
         <PitchSVG :stroke="pitchStroke" />
@@ -234,8 +231,6 @@ import { supabase } from "@/lib/supabase";
 import { BASE_URL } from "@/lib/api";
 import Logo from "@/design-system/primitives/Logo.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
-import StatusBar from "@/design-system/primitives/StatusBar.vue";
-
 type AuthTab = "login" | "register";
 type OAuthProvider = "google" | "apple";
 
