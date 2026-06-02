@@ -55,6 +55,10 @@ type PlayerRepository interface {
 	Update(ctx context.Context, player *models.Player) error
 	Delete(ctx context.Context, id int64) error
 
+	// UpsertByExternalID inserts or updates a player keyed on its API-Football
+	// external_id. Used by the sync-players command for idempotent loads.
+	UpsertByExternalID(ctx context.Context, player *models.Player) error
+
 	// Points operations
 	UpsertPoints(ctx context.Context, points *models.PlayerPoints) error
 	GetPoints(ctx context.Context, playerID, matchdayID int64) (*models.PlayerPoints, error)
@@ -69,6 +73,16 @@ type TeamRepository interface {
 	GetPlayerOwner(ctx context.Context, leagueID, playerID int64) (*models.TeamPlayer, error)
 	HasPlayer(ctx context.Context, leagueID, userID, playerID int64) (bool, error)
 	TransferPlayer(ctx context.Context, leagueID, oldUserID, newUserID, playerID int64, price int) error
+}
+
+// ClubRepository handles real-world football club persistence (loaded from
+// API-Football). This is the real-club catalog and is unrelated to the
+// fantasy-ownership TeamRepository above.
+type ClubRepository interface {
+	// UpsertByExternalID inserts or updates a club keyed on its API-Football
+	// external_id, returning the internal id (used to resolve players' team_id).
+	UpsertByExternalID(ctx context.Context, club *models.Team) (int64, error)
+	GetByExternalID(ctx context.Context, externalID int64) (*models.Team, error)
 }
 
 // MatchdayRepository handles matchday and lineup persistence.
