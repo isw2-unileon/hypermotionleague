@@ -23,6 +23,16 @@ type Player struct {
 	IsActive    bool           `json:"is_active"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
+
+	// API-Football sync fields, written by the sync-players command. The
+	// existing read queries do not select these, so they stay zero/nil on
+	// normal reads (and are omitted from JSON). JerseyNumber and Age are
+	// pointers so an unknown value (API null / 0) is stored as SQL NULL.
+	ExternalID   int64  `json:"external_id,omitempty"` // API-Football player.id
+	TeamID       *int64 `json:"team_id,omitempty"`     // FK to teams.id (real club)
+	JerseyNumber *int   `json:"jersey_number,omitempty"`
+	PhotoURL     string `json:"photo_url,omitempty"`
+	Age          *int   `json:"age,omitempty"`
 }
 
 // FullName returns the player's full name.

@@ -11,6 +11,7 @@ type Repositories struct {
 	League   *LeagueRepo
 	Player   *PlayerRepo
 	Team     *TeamRepo
+	Club     *ClubRepo
 	Matchday *MatchdayRepo
 	Market   *MarketRepo
 }
@@ -22,6 +23,7 @@ func NewRepositories(pool *pgxpool.Pool) *Repositories {
 		League:   NewLeagueRepo(pool),
 		Player:   NewPlayerRepo(pool),
 		Team:     NewTeamRepo(pool),
+		Club:     NewClubRepo(pool),
 		Matchday: NewMatchdayRepo(pool),
 		Market:   NewMarketRepo(pool),
 	}
