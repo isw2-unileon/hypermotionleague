@@ -125,6 +125,9 @@ type MarketRepository interface {
 	UpdateBidStatus(ctx context.Context, id int64, status models.BidStatus) error
 	CancelBid(ctx context.Context, bidID, userID int64) error
 
+	// Resolution
+	ResolveListingTx(ctx context.Context, listing models.MarketListing) error
+
 	// Market status
 	GetMarketStatus(ctx context.Context, leagueID, userID int64) (*models.MarketStatus, error)
 }

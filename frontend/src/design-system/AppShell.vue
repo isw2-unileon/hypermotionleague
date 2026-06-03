@@ -77,7 +77,6 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
-import { logout } from "@/lib/auth";
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
 
@@ -116,8 +115,13 @@ function onTabSelect(id: NavId): void {
   if (item && item.route !== route.path) router.push(item.route);
 }
 
+
+// No dedicated auth store: the app's JWT lives in localStorage["token"]
+// (see lib/api.ts, which clears it the same way on a 401). Logout drops the
+// token and returns the user to the auth screen.
 function onLogout(): void {
-  void logout();
+  localStorage.removeItem("token");
+  router.push("/auth");
 }
 </script>
 
@@ -222,16 +226,7 @@ function onLogout(): void {
   margin-top: 2px;
 }
 
-.main {
-  padding: 40px 56px;
-  overflow-y: auto;
-}
-
-.mobile-tabbar {
-  display: none;
-}
-
-/* Logout — reuses the .btn / .btn-ghost tokens; only layout is set here.
+/* Logout — reuses the .btn / .btn-ghost tokens; only layout/colour set here.
    Full width at the bottom of the sidebar, aligned with the nav items. */
 .logout-btn {
   width: 100%;
@@ -241,14 +236,30 @@ function onLogout(): void {
   padding: 10px 12px;
   font-size: 13px;
   font-weight: 500;
+  color: var(--ink-300);
+}
+
+.logout-btn:hover {
+  background: transparent;
+  color: var(--down);
+  border-color: var(--down);
 }
 
 .logout-icon {
   flex-shrink: 0;
 }
 
-/* Shell-owned top bar, only used on mobile (sidebar is hidden there). */
+.main {
+  padding: 40px 56px;
+  overflow-y: auto;
+}
+
+/* Hidden on desktop: the sidebar carries its own logout there. */
 .mobile-topbar {
+  display: none;
+}
+
+.mobile-tabbar {
   display: none;
 }
 
@@ -262,17 +273,7 @@ function onLogout(): void {
     display: none;
   }
 
-  .main {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-  }
-
-  .mobile-tabbar {
-    display: flex;
-    flex-shrink: 0;
-  }
-
+  /* Single mobile header: Logo on the left, "Salir" on the right. */
   .mobile-topbar {
     display: flex;
     align-items: center;
@@ -283,13 +284,24 @@ function onLogout(): void {
     flex-shrink: 0;
   }
 
-  /* Compact variant for the mobile top bar (overrides the sidebar layout). */
+  /* Compact logout for the mobile top bar (overrides the sidebar layout). */
   .logout-btn-mobile {
     width: auto;
     margin-top: 0;
     padding: 8px 12px;
     font-size: 12px;
     gap: 8px;
+  }
+
+  .main {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .mobile-tabbar {
+    display: flex;
+    flex-shrink: 0;
   }
 }
 </style>
