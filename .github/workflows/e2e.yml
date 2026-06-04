@@ -23,6 +23,8 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/hypermotion_test?sslmode=disable
       PORT: "8080"
       GIN_MODE: release
+      VITE_SUPABASE_URL: https://placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder-anon-key
 
     services:
       postgres:
