@@ -47,7 +47,8 @@ migrate:
 	@for f in backend/db/migrations/001_initial_schema.up.sql \
 	           backend/db/migrations/002_add_auth_provider.up.sql \
 	           backend/db/migrations/003_fix_lineup_position_constraint.up.sql \
-	           backend/db/migrations/004_extend_player_points_stats.up.sql; do \
+	           backend/db/migrations/004_extend_player_points_stats.up.sql \
+	           backend/db/migrations/005_unique_bid_per_listing_user.up.sql; do \
 
 	    v=$$(basename $$f .up.sql); \
 	    if ! psql "$(DB_URL)" -tAc "SELECT 1 FROM schema_migrations WHERE version='$$v'" 2>/dev/null | grep -q 1; then \
