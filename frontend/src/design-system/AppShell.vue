@@ -20,11 +20,7 @@
 
       <div class="spacer" />
 
-      <div class="countdown card">
-        <div class="countdown-label mono">PRÓXIMO CIERRE</div>
-        <div class="countdown-time display tnum">04:18:42</div>
-        <div class="countdown-sub">Mercado cierra hoy</div>
-      </div>
+      <MarketCountdown time-text="04:18:42" />
 
       <button type="button" class="btn btn-ghost logout-btn" @click="onLogout">
         <svg
@@ -46,7 +42,7 @@
       <Logo :size="22" />
       <button type="button" class="btn btn-ghost logout-btn logout-btn-mobile" @click="onLogout">
         <svg
-          class="logout-icon"
+          class="logout-icon"1
           width="14"
           height="14"
           viewBox="0 0 16 16"
@@ -77,6 +73,8 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
+import MarketCountdown from "./MarketCountDown.vue";
+
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
 
@@ -203,28 +201,6 @@ function onLogout(): void {
   flex: 1;
 }
 
-.countdown {
-  padding: 14px;
-  background: var(--ink-800);
-}
-
-.countdown-label {
-  font-size: 9px;
-  color: var(--ink-400);
-  letter-spacing: 0.15em;
-}
-
-.countdown-time {
-  font-size: 26px;
-  margin-top: 4px;
-  color: var(--lime);
-}
-
-.countdown-sub {
-  font-size: 11px;
-  color: var(--ink-300);
-  margin-top: 2px;
-}
 
 /* Logout — reuses the .btn / .btn-ghost tokens; only layout/colour set here.
    Full width at the bottom of the sidebar, aligned with the nav items. */
