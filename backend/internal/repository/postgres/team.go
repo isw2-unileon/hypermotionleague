@@ -166,3 +166,77 @@ func (r *TeamRepo) TransferPlayer(ctx context.Context, leagueID, oldUserID, newU
 
 	return tx.Commit(ctx)
 }
+
+// draftQuota describes how many players of a position make up an initial squad.
+type draftQuota struct {
+	position models.PlayerPosition
+	count    int
+}
+
+// initialSquadQuotas defines the fixed shape of an initial draft squad:
+// 2 GK, 5 DEF, 5 MID, 3 FWD "15 players"
+var initialSquadQuotas = []draftQuota{
+	{models.PositionGK, 2},
+	{models.PositionDEF, 5},
+	{models.PositionMID, 5},
+	{models.PositionFWD, 3},
+}
+
+// DraftInitialSquad assigns a random starting squad of 15 players (2 GK, 5 DEF,
+// 5 MID, 3 FWD) to a user in a league.
+func (r *TeamRepo) DraftInitialSquad(ctx context.Context, leagueID, userID int64) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for _, q := range initialSquadQuotas {
+		rows, err := tx.Query(ctx,
+			`SELECT id FROM players
+			 WHERE is_active = TRUE
+			   AND position = $1
+			   AND id NOT IN (SELECT player_id FROM team_players WHERE league_id = $2)
+			 ORDER BY RANDOM()
+			 LIMIT $3`,
+			q.position, leagueID, q.count,
+		)
+		if err != nil {
+			return fmt.Errorf("select available %s: %w", q.position, err)
+		}
+
+		playerIDs := make([]int64, 0, q.count)
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan available %s: %w", q.position, err)
+			}
+			playerIDs = append(playerIDs, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate available %s: %w", q.position, err)
+		}
+
+		if len(playerIDs) < q.count {
+			return fmt.Errorf("not enough available %s in this league: need %d, found %d",
+				q.position, q.count, len(playerIDs))
+		}
+
+		for _, playerID := range playerIDs {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO team_players (league_id, user_id, player_id, purchase_price)
+				 VALUES ($1, $2, $3, 0)`,
+				leagueID, userID, playerID,
+			); err != nil {
+				return fmt.Errorf("assign %s player %d: %w", q.position, playerID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit draft: %w", err)
+	}
+	return nil
+}

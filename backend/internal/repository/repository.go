@@ -73,6 +73,9 @@ type TeamRepository interface {
 	GetPlayerOwner(ctx context.Context, leagueID, playerID int64) (*models.TeamPlayer, error)
 	HasPlayer(ctx context.Context, leagueID, userID, playerID int64) (bool, error)
 	TransferPlayer(ctx context.Context, leagueID, oldUserID, newUserID, playerID int64, price int) error
+
+	// DraftInitialSquad assigns a random starting squad "15" (2 GK, 5 DEF, 5 MID,3 FWD)
+	DraftInitialSquad(ctx context.Context, leagueID, userID int64) error
 }
 
 // ClubRepository handles real-world football club persistence (loaded from
