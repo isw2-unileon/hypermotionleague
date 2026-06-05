@@ -318,6 +318,56 @@ func (r *MarketRepo) GetMarketStatus(ctx context.Context, leagueID, userID int64
 	return status, nil
 }
 
+// GetRecentActivity returns the last N market events for a league, combining
+// completed transfers (won bids) and user-initiated listings.
+func (r *MarketRepo) GetRecentActivity(ctx context.Context, leagueID int64, limit int) ([]models.ActivityEvent, error) {
+	query := `
+		SELECT event_type, occurred_at, actor, player_name, amount FROM (
+			SELECT
+				'transfer'                            AS event_type,
+				b.placed_at                           AS occurred_at,
+				u.display_name                        AS actor,
+				p.first_name || ' ' || p.last_name   AS player_name,
+				b.amount
+			FROM bids b
+			JOIN market_listings ml ON b.listing_id = ml.id
+			JOIN users u            ON b.user_id    = u.id
+			JOIN players p          ON ml.player_id = p.id
+			WHERE ml.league_id = $1 AND b.status = 'won'
+
+			UNION ALL
+
+			SELECT
+				'listing'                             AS event_type,
+				ml.listed_at                          AS occurred_at,
+				u.display_name                        AS actor,
+				p.first_name || ' ' || p.last_name   AS player_name,
+				ml.base_price
+			FROM market_listings ml
+			JOIN users u   ON ml.seller_id  = u.id
+			JOIN players p ON ml.player_id  = p.id
+			WHERE ml.league_id = $1 AND ml.seller_id IS NOT NULL
+		) events
+		ORDER BY occurred_at DESC
+		LIMIT $2`
+
+	rows, err := r.pool.Query(ctx, query, leagueID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("get recent activity: %w", err)
+	}
+	defer rows.Close()
+
+	var events []models.ActivityEvent
+	for rows.Next() {
+		var e models.ActivityEvent
+		if err := rows.Scan(&e.EventType, &e.OccurredAt, &e.Actor, &e.PlayerName, &e.Amount); err != nil {
+			return nil, fmt.Errorf("scan activity event: %w", err)
+		}
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 // PlaceBidTx inserts a new bid inside a transaction, serializing concurrent requests
 // and properly calculating the committed budget to prevent overdrafts.
 func (r *MarketRepo) PlaceBidTx(ctx context.Context, leagueID int64, bid *models.Bid) error {

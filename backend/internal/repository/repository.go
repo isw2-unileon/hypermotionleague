@@ -130,4 +130,7 @@ type MarketRepository interface {
 
 	// Market status
 	GetMarketStatus(ctx context.Context, leagueID, userID int64) (*models.MarketStatus, error)
+
+	// Activity feed
+	GetRecentActivity(ctx context.Context, leagueID int64, limit int) ([]models.ActivityEvent, error)
 }

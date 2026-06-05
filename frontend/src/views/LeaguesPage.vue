@@ -170,11 +170,11 @@
             </form>
           </div>
 
-          <!-- Recent activity is mocked pending a Sprint 3 events endpoint. -->
           <div class="card activity-card">
             <div class="meta activity-label mono">● ACTIVIDAD RECIENTE</div>
-            <div class="activity-list">
-              <div v-for="(item, i) in recentActivityMock" :key="i" class="activity-row">
+            <div v-if="recentActivity.length === 0" class="activity-empty mono">Sin movimientos recientes</div>
+            <div v-else class="activity-list">
+              <div v-for="(item, i) in recentActivity" :key="i" class="activity-row">
                 <span>
                   <span class="activity-actor" :style="{ color: item.color }">{{ item.actor }}</span>
                   {{ item.action }}
@@ -254,10 +254,19 @@ interface ActivityItem {
   color: string;
 }
 
+interface ActivityEvent {
+  event_type: "transfer" | "listing";
+  occurred_at: string;
+  actor: string;
+  player_name: string;
+  amount: number;
+}
+
 const router = useRouter();
 
 const leagues = ref<League[]>([]);
 const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
+const recentActivity = ref<ActivityItem[]>([]);
 const loading = ref(true);
 const error = ref("");
 const inviteCode = ref("");
@@ -269,15 +278,24 @@ const joinInputRef = ref<HTMLInputElement | null>(null);
 // TODO Sprint 2: bind to /api/v1/users/me/matchday-points endpoint.
 const matchdayPoints = 87;
 
+function timeAgo(isoDate: string): string {
+  const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function mapActivityEvent(e: ActivityEvent): ActivityItem {
+  if (e.event_type === "transfer") {
+    return { actor: e.actor, action: `fichó a ${e.player_name}`, time: timeAgo(e.occurred_at), color: "var(--lime)" };
+  }
+  return { actor: e.actor, action: `puso a ${e.player_name} en venta`, time: timeAgo(e.occurred_at), color: "var(--pos-fwd)" };
+}
+
 // Accent palette cycled per league so the same league always looks the same.
 const ACCENTS = ["var(--lime)", "var(--pos-fwd)", "var(--pos-def)", "var(--pos-gk)"];
 
-// Recent activity is mocked pending a Sprint 3 events/feed endpoint.
-const recentActivityMock: ActivityItem[] = [
-  { actor: "Lucía R.", action: "pujó por Etta Eyong", time: "2m", color: "var(--lime)" },
-  { actor: "Carlos M.", action: "subió a 1°", time: "12m", color: "var(--pos-fwd)" },
-  { actor: "Andrés P.", action: "vendió Iván Romero", time: "38m", color: "var(--pos-def)" },
-];
 
 // Format budget_per_user (euros) into the compact "100M" label the design uses.
 function formatBudget(amount: number): string {
@@ -354,14 +372,23 @@ async function fetchLeagues(): Promise<void> {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
-      const results = await Promise.allSettled(
-        ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`)),
-      );
+
+      const [standingsResults, activityResults] = await Promise.all([
+        Promise.allSettled(ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`))),
+        Promise.allSettled(ids.map(id => api.get<{ data: ActivityEvent[] }>(`/api/v1/leagues/${id}/market/feed`))),
+      ]);
+
       const map = new Map<number, StandingsResponse>();
-      results.forEach((result, i) => {
+      standingsResults.forEach((result, i) => {
         if (result.status === "fulfilled") map.set(ids[i]!, result.value);
       });
       standingsMap.value = map;
+
+      const allEvents: ActivityEvent[] = activityResults.flatMap(r =>
+        r.status === "fulfilled" ? r.value.data : [],
+      );
+      allEvents.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+      recentActivity.value = allEvents.slice(0, 8).map(mapActivityEvent);
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Error al cargar ligas";
@@ -790,6 +817,13 @@ onUnmounted(() => {
 .activity-time {
   color: var(--ink-400);
   font-size: 10px;
+}
+
+.activity-empty {
+  font-size: 11px;
+  color: var(--ink-500);
+  text-align: center;
+  padding: 12px 0;
 }
 
 /* ===== States ===== */
