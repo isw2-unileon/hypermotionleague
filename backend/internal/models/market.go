@@ -56,6 +56,15 @@ type PlaceBidRequest struct {
 	Amount    int   `json:"amount"     binding:"required,min=1"`
 }
 
+// ActivityEvent represents a single recent market event in a league feed.
+type ActivityEvent struct {
+	EventType  string    `json:"event_type"`  // "transfer" | "listing"
+	OccurredAt time.Time `json:"occurred_at"`
+	Actor      string    `json:"actor"`
+	PlayerName string    `json:"player_name"`
+	Amount     int       `json:"amount"`
+}
+
 // MarketStatus represents the current state of a league market.
 type MarketStatus struct {
 	LeagueID       int64     `json:"league_id"`

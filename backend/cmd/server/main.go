@@ -121,6 +121,7 @@ func main() {
 		protected.GET("/leagues/:id/market/bids", marketHandler.GetUserBids)
 		protected.DELETE("/leagues/:id/market/bids/:bid_id", marketHandler.CancelBid)
 		protected.GET("/leagues/:id/market/status", marketHandler.GetMarketStatus)
+		protected.GET("/leagues/:id/market/feed", marketHandler.GetRecentActivity)
 	}
 
 	srv := &http.Server{
