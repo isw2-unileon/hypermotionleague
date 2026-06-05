@@ -43,7 +43,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
 	oauthHandler := handlers.NewOAuthHandler(repos.User, cfg.JWTSecret, cfg.SupabaseURL, cfg.SupabaseKey)
-	leagueHandler := handlers.NewLeagueHandler(repos.League)
+	leagueHandler := handlers.NewLeagueHandler(repos.League, repos.Team)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)

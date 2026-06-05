@@ -75,6 +75,7 @@ func (m *mockTeamRepo) HasPlayer(ctx context.Context, leagueID, userID, playerID
 func (m *mockTeamRepo) TransferPlayer(_ context.Context, _, _, _, _ int64, _ int) error {
 	return nil
 }
+func (m *mockTeamRepo) DraftInitialSquad(_ context.Context, _, _ int64) error { return nil }
 
 type mockMatchdayRepo struct {
 	fnGetByLeague          func(ctx context.Context, leagueID int64) ([]models.Matchday, error)
