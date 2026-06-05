@@ -197,6 +197,7 @@ import Avatar from "@/design-system/primitives/Avatar.vue";
 import LeagueAvatar from "@/design-system/primitives/LeagueAvatar.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
+import { currentUserId } from "@/lib/auth";
 
 // Backend shape returned by GET /api/v1/leagues (mirrors models.League).
 // UI-only fields are layered on top as a computed view-model (LeagueView),
@@ -232,6 +233,20 @@ interface StatCard {
   lime: boolean;
 }
 
+interface UserStanding {
+  rank: number;
+  user_id: number;
+  username: string;
+  display_name: string;
+  total_points: number;
+}
+
+interface StandingsResponse {
+  league_id: number;
+  matchday_id?: number;
+  rankings: UserStanding[];
+}
+
 interface ActivityItem {
   actor: string;
   action: string;
@@ -242,6 +257,7 @@ interface ActivityItem {
 const router = useRouter();
 
 const leagues = ref<League[]>([]);
+const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
 const loading = ref(true);
 const error = ref("");
 const inviteCode = ref("");
@@ -289,17 +305,43 @@ const leagueViews = computed<LeagueView[]>(() =>
   })),
 );
 
-// LIGAS ACTIVAS is derived from the fetched array; the rest need extra API
-// data and render as placeholders + TODO until those endpoints exist.
-const stats = computed<StatCard[]>(() => [
-  { label: "LIGAS ACTIVAS", value: String(leagues.value.length), sub: "en juego", lime: false },
-  // TODO Sprint 2: total points needs a per-user points endpoint.
-  { label: "PUNTOS TOTALES", value: "7,022", sub: "media 219.4/jor", lime: false },
-  // TODO Sprint 2: best position needs a standings call per league.
-  { label: "MEJOR PUESTO", value: "01", sub: "pendiente", lime: true },
-  // TODO Sprint 2: active bids needs the market/bids endpoint.
-  { label: "PUJAS ACTIVAS", value: "3/5", sub: "Cierra 04:18:42", lime: false },
-]);
+const stats = computed<StatCard[]>(() => {
+  const uid = currentUserId();
+
+  type MyEntry = { rank: number; totalPoints: number; total: number };
+  const myStandings: MyEntry[] = [];
+  for (const l of leagues.value) {
+    const s = standingsMap.value.get(l.id);
+    if (!s) continue;
+    const row = s.rankings.find(r => r.user_id === uid);
+    if (!row) continue;
+    myStandings.push({ rank: row.rank, totalPoints: row.total_points, total: s.rankings.length });
+  }
+
+  const totalPoints = myStandings.reduce((sum, s) => sum + s.totalPoints, 0);
+  const bestEntry = myStandings.reduce<MyEntry | null>(
+    (best, s) => (!best || s.rank < best.rank ? s : best),
+    null,
+  );
+
+  return [
+    { label: "LIGAS ACTIVAS", value: String(leagues.value.length), sub: "en juego", lime: false },
+    {
+      label: "PUNTOS TOTALES",
+      value: myStandings.length > 0 ? totalPoints.toLocaleString("es-ES") : "—",
+      sub: "acumulados",
+      lime: false,
+    },
+    {
+      label: "MEJOR PUESTO",
+      value: bestEntry ? bestEntry.rank.toString().padStart(2, "0") : "—",
+      sub: bestEntry ? `de ${bestEntry.total} mánagers` : "sin datos",
+      lime: true,
+    },
+    // TODO Sprint 3 (Dev 4 / 4.C): active bids needs the market/bids endpoint.
+    { label: "PUJAS ACTIVAS", value: "3/5", sub: "Cierra 04:18:42", lime: false },
+  ];
+});
 
 function updateIsMobile(): void {
   isMobile.value = window.innerWidth < 768;
@@ -310,6 +352,17 @@ async function fetchLeagues(): Promise<void> {
   error.value = "";
   try {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
+    if (leagues.value.length > 0) {
+      const ids = leagues.value.map(l => l.id);
+      const results = await Promise.allSettled(
+        ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`)),
+      );
+      const map = new Map<number, StandingsResponse>();
+      results.forEach((result, i) => {
+        if (result.status === "fulfilled") map.set(ids[i]!, result.value);
+      });
+      standingsMap.value = map;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Error al cargar ligas";
   } finally {
