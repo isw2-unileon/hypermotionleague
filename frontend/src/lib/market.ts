@@ -63,8 +63,8 @@ export interface BidWithDetails extends Bid {
 
 export interface MarketStatus {
   league_id: number;
-  is_open: boolean; // ⚠ never populated by the repo — always false
-  closes_at: string; // ⚠ never populated by the repo — always the zero time
+  is_open: boolean;
+  closes_at: string;
   active_listings: number;
   your_active_bids: number;
   max_bids_per_user: number;
