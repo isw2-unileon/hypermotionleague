@@ -12,99 +12,120 @@
           <div v-if="squadName" class="subtitle">{{ squadName }}</div>
         </header>
 
-        <!-- Matchday selector -->
-        <select
-          v-model="selectedMatchdayNumber"
-          class="input md-select"
-          @change="onMatchdayChange"
-        >
-          <option :value="null">General (Total)</option>
-          <option v-for="md in matchdays" :key="md.id" :value="md.number">
-            Jornada {{ md.number }} — {{ md.name }}
-          </option>
-        </select>
-
-        <!-- Loading -->
-        <div v-if="loading" class="state state-muted">
-          Cargando equipo...
+        <!-- View toggle: standings vs full squad -->
+        <div class="view-tabs">
+          <button
+            class="vtab mono"
+            :class="{ active: viewMode === 'standings' }"
+            @click="viewMode = 'standings'"
+          >PUNTOS POR JORNADA</button>
+          <button
+            class="vtab mono"
+            :class="{ active: viewMode === 'squad' }"
+            @click="viewMode = 'squad'; fetchRivalSquad()"
+          >PLANTILLA COMPLETA</button>
         </div>
 
-        <!-- Error -->
-        <div v-else-if="error" class="state state-error">
-          {{ error }}
-        </div>
+        <!-- ═══ STANDINGS VIEW ═══ -->
+        <template v-if="viewMode === 'standings'">
+          <!-- Matchday selector -->
+          <select
+            v-model="selectedMatchdayNumber"
+            class="input md-select"
+            @change="onMatchdayChange"
+          >
+            <option :value="null">General (Total)</option>
+            <option v-for="md in matchdays" :key="md.id" :value="md.number">
+              Jornada {{ md.number }} — {{ md.name }}
+            </option>
+          </select>
 
-        <!-- User summary -->
-        <div
-          v-else-if="userStanding && selectedMatchdayNumber"
-          class="card summary"
-        >
-          <div class="summary-block">
-            <div class="summary-label mono">POSICIÓN</div>
-            <div class="summary-value display tnum" :style="{ color: rankColor }">
-              #{{ userStanding.rank }}
-            </div>
-          </div>
-          <div class="summary-block summary-right">
-            <div class="summary-label mono">PUNTOS</div>
-            <div class="summary-value display tnum summary-points">
-              {{ userStanding.total_points }}
-            </div>
-          </div>
-        </div>
+          <!-- Loading -->
+          <div v-if="loading" class="state state-muted">Cargando equipo...</div>
 
-        <!-- Empty states -->
-        <div
-          v-if="!loading && matchdays.length === 0"
-          class="state state-muted"
-        >
-          No hay jornadas creadas en esta liga todavía.
-        </div>
+          <!-- Error -->
+          <div v-else-if="error" class="state state-error">{{ error }}</div>
 
-        <div
-          v-else-if="!selectedMatchdayNumber"
-          class="state state-muted"
-        >
-          Selecciona una jornada para ver los jugadores
-        </div>
-
-        <div
-          v-else-if="!userStanding && !loading"
-          class="state state-muted"
-        >
-          No hay datos para esta jornada
-        </div>
-
-        <!-- Players grouped by position -->
-        <div
-          v-if="userStanding && userStanding.players && userStanding.players.length > 0"
-          class="groups"
-        >
-          <section v-for="group in playerGroups" :key="group.key" class="group">
-            <div
-              v-for="player in group.players"
-              :key="player.player_id"
-              class="player-row"
-            >
-              <span class="pos" :class="group.cls">{{ group.label }}</span>
-              <div class="player-info">
-                <div class="player-name">
-                  {{ player.first_name }} {{ player.last_name }}
-                </div>
-                <div class="player-team mono">{{ player.team_name }}</div>
+          <!-- User summary -->
+          <div v-else-if="userStanding && selectedMatchdayNumber" class="card summary">
+            <div class="summary-block">
+              <div class="summary-label mono">POSICIÓN</div>
+              <div class="summary-value display tnum" :style="{ color: rankColor }">
+                #{{ userStanding.rank }}
               </div>
-              <span class="player-points display tnum">{{ player.points }}</span>
             </div>
-          </section>
-        </div>
+            <div class="summary-block summary-right">
+              <div class="summary-label mono">PUNTOS</div>
+              <div class="summary-value display tnum summary-points">
+                {{ userStanding.total_points }}
+              </div>
+            </div>
+          </div>
 
-        <!-- No players for this matchday -->
-        <div
-          v-else-if="userStanding && selectedMatchdayNumber && !loading"
-          class="state state-muted"
-        >
-          Este usuario no tiene jugadores en su alineación para esta jornada.
-        </div>
+          <!-- Empty states -->
+          <div v-if="!loading && matchdays.length === 0" class="state state-muted">
+            No hay jornadas creadas en esta liga todavía.
+          </div>
+          <div v-else-if="!selectedMatchdayNumber" class="state state-muted">
+            Selecciona una jornada para ver los jugadores
+          </div>
+          <div v-else-if="!userStanding && !loading" class="state state-muted">
+            No hay datos para esta jornada
+          </div>
+
+          <!-- Players grouped by position -->
+          <div v-if="userStanding && userStanding.players && userStanding.players.length > 0" class="groups">
+            <section v-for="group in playerGroups" :key="group.key" class="group">
+              <div v-for="player in group.players" :key="player.player_id" class="player-row">
+                <span class="pos" :class="group.cls">{{ group.label }}</span>
+                <div class="player-info">
+                  <div class="player-name">{{ player.first_name }} {{ player.last_name }}</div>
+                  <div class="player-team mono">{{ player.team_name }}</div>
+                </div>
+                <span class="player-points display tnum">{{ player.points }}</span>
+              </div>
+            </section>
+          </div>
+
+          <div v-else-if="userStanding && selectedMatchdayNumber && !loading" class="state state-muted">
+            Este usuario no tiene jugadores en su alineación para esta jornada.
+          </div>
+        </template>
+
+        <!-- ═══ SQUAD VIEW (with buy clause) ═══ -->
+        <template v-if="viewMode === 'squad'">
+          <div v-if="squadLoading" class="state state-muted">Cargando plantilla...</div>
+          <div v-else-if="squadError" class="state state-error">{{ squadError }}</div>
+          <div v-else-if="rivalPlayers.length === 0" class="state state-muted">
+            Este usuario no tiene jugadores en su equipo.
+          </div>
+          <div v-else class="groups">
+            <section v-for="group in rivalPlayerGroups" :key="group.key" class="group">
+              <div v-for="tp in group.players" :key="tp.player_id" class="player-row player-row-buy">
+                <span class="pos" :class="group.cls">{{ group.label }}</span>
+                <div class="player-info">
+                  <div class="player-name">{{ tp.player.first_name }} {{ tp.player.last_name }}</div>
+                  <div class="player-team mono">{{ tp.player.team_name }}</div>
+                </div>
+                <div class="clause-col">
+                  <div class="mono clause-label">CLÁUSULA</div>
+                  <div class="display tnum clause-value">{{ millions(tp.player.market_value) }}</div>
+                </div>
+                <button
+                  class="btn btn-secondary buy-btn"
+                  :disabled="buying === tp.player_id"
+                  @click="confirmBuy(tp)"
+                >
+                  {{ buying === tp.player_id ? 'Comprando…' : 'Fichar' }}
+                </button>
+              </div>
+            </section>
+          </div>
+        </template>
+
+        <!-- Buy result message -->
+        <div v-if="buySuccess" class="buy-msg buy-msg-ok mono">{{ buySuccess }}</div>
+        <div v-if="buyError" class="buy-msg buy-msg-err mono">{{ buyError }}</div>
       </div>
     </div>
   </AppShell>
@@ -147,6 +168,34 @@ interface Standings {
   rankings: UserStanding[];
 }
 
+interface Player {
+  id: number;
+  first_name: string;
+  last_name: string;
+  position: string;
+  team_name: string;
+  market_value: number;
+}
+
+interface TeamPlayerWithDetails {
+  id: number;
+  league_id: number;
+  user_id: number;
+  player_id: number;
+  purchase_price: number;
+  player: Player;
+}
+
+interface UserTeam {
+  league_id: number;
+  user_id: number;
+  username: string;
+  display_name: string;
+  budget: number;
+  players: TeamPlayerWithDetails[];
+  total_value: number;
+}
+
 const route = useRoute();
 const router = useRouter();
 
@@ -160,7 +209,15 @@ const userName = ref("");
 const loading = ref(false);
 const error = ref("");
 
-// Position groups: backend code → display badge + .pos color class.
+const viewMode = ref<"standings" | "squad">("standings");
+const rivalPlayers = ref<TeamPlayerWithDetails[]>([]);
+const squadLoading = ref(false);
+const squadError = ref("");
+const buying = ref<number | null>(null);
+const buySuccess = ref("");
+const buyError = ref("");
+
+// Position groups
 const POSITION_META = [
   { key: "GK", label: "POR", cls: "pos-gk" },
   { key: "DEF", label: "DEF", cls: "pos-def" },
@@ -168,11 +225,11 @@ const POSITION_META = [
   { key: "FWD", label: "DEL", cls: "pos-fwd" },
 ] as const;
 
-interface PositionGroup {
+interface PositionGroup<T> {
   key: string;
   label: string;
   cls: string;
-  players: StandingPlayer[];
+  players: T[];
 }
 
 const matchdayLabel = computed(() =>
@@ -181,7 +238,6 @@ const matchdayLabel = computed(() =>
     : "EQUIPO",
 );
 
-// No dedicated squad-name field from the backend yet; fall back to @username.
 const squadName = computed(() => {
   const username = userStanding.value?.username;
   return username ? `@${username}` : "";
@@ -195,25 +251,32 @@ const rankColor = computed(() => {
   return "var(--ink-100)";
 });
 
-const playerGroups = computed<PositionGroup[]>(() => {
+const playerGroups = computed<PositionGroup<StandingPlayer>[]>(() => {
   const players = userStanding.value?.players ?? [];
   const known = new Set<string>(POSITION_META.map((m) => m.key));
-
-  const groups: PositionGroup[] = POSITION_META.map((m) => ({
-    key: m.key,
-    label: m.label,
-    cls: m.cls,
+  const groups: PositionGroup<StandingPlayer>[] = POSITION_META.map((m) => ({
+    key: m.key, label: m.label, cls: m.cls,
     players: players.filter((p) => p.position === m.key),
   })).filter((g) => g.players.length > 0);
-
-  // Safety net: never silently drop a player with an unexpected position code.
   const others = players.filter((p) => !known.has(p.position));
   if (others.length > 0) {
     groups.push({ key: "OTHER", label: "—", cls: "pos-other", players: others });
   }
-
   return groups;
 });
+
+const rivalPlayerGroups = computed<PositionGroup<TeamPlayerWithDetails>[]>(() => {
+  const players = rivalPlayers.value;
+  return POSITION_META.map((m) => ({
+    key: m.key, label: m.label, cls: m.cls,
+    players: players.filter((p) => p.player.position === m.key),
+  })).filter((g) => g.players.length > 0);
+});
+
+function millions(amount: number): string {
+  const text = (amount / 1_000_000).toFixed(1).replace(/\.0$/, "");
+  return `€${text}M`;
+}
 
 function goBack() {
   if (window.history.length > 1) {
@@ -222,6 +285,8 @@ function goBack() {
     router.push({ path: "/standings", query: route.query });
   }
 }
+
+// ── Data fetching ──
 
 onMounted(async () => {
   await Promise.all([fetchUserName(), fetchMatchdays()]);
@@ -272,16 +337,12 @@ async function fetchUserStanding() {
     loading.value = false;
     return;
   }
-
   loading.value = true;
   error.value = "";
-
   try {
     const path = `/api/v1/leagues/${leagueId.value}/matchdays/${selectedMatchdayNumber.value}/standings`;
     const data = await api.get<Standings>(path);
-
     const userRank = data.rankings.find((r) => r.user_id === userId.value);
-
     if (userRank) {
       userStanding.value = userRank;
     } else {
@@ -293,6 +354,51 @@ async function fetchUserStanding() {
     userStanding.value = null;
   } finally {
     loading.value = false;
+  }
+}
+
+async function fetchRivalSquad() {
+  if (rivalPlayers.value.length > 0) return; // already loaded
+  squadLoading.value = true;
+  squadError.value = "";
+  try {
+    const team = await api.get<UserTeam>(
+      `/api/v1/leagues/${leagueId.value}/users/${userId.value}/team`,
+    );
+    rivalPlayers.value = team.players ?? [];
+    if (!userName.value || userName.value === "Usuario") {
+      userName.value = team.display_name || team.username || "Usuario";
+    }
+  } catch (e: unknown) {
+    squadError.value = e instanceof Error ? e.message : "Error al cargar la plantilla";
+  } finally {
+    squadLoading.value = false;
+  }
+}
+
+async function confirmBuy(tp: TeamPlayerWithDetails) {
+  const name = `${tp.player.first_name} ${tp.player.last_name}`;
+  const price = millions(tp.player.market_value);
+  const ok = window.confirm(
+    `¿Pagar la cláusula de ${price} por ${name}? Se descontará de tu saldo.`,
+  );
+  if (!ok) return;
+
+  buying.value = tp.player_id;
+  buySuccess.value = "";
+  buyError.value = "";
+  try {
+    await api.post(
+      `/api/v1/leagues/${leagueId.value}/users/${userId.value}/team/${tp.player_id}/buy`,
+    );
+    buySuccess.value = `Has fichado a ${name} por ${price}`;
+    // Refresh the squad to reflect the change
+    rivalPlayers.value = [];
+    await fetchRivalSquad();
+  } catch (e: unknown) {
+    buyError.value = e instanceof Error ? e.message : "No se pudo completar la compra";
+  } finally {
+    buying.value = null;
   }
 }
 </script>
@@ -360,7 +466,32 @@ async function fetchUserStanding() {
   color: var(--ink-300);
 }
 
-/* Matchday select — reuses the global .input token styling */
+/* View tabs */
+.view-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--ink-700);
+}
+
+.vtab {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-400);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  text-align: center;
+}
+
+.vtab.active {
+  color: var(--lime);
+  border-bottom-color: var(--lime);
+}
+
+/* Matchday select */
 .md-select {
   max-width: 360px;
   cursor: pointer;
@@ -432,6 +563,10 @@ async function fetchUserStanding() {
   border-radius: var(--r-sm);
 }
 
+.player-row-buy {
+  gap: 10px;
+}
+
 .player-info {
   flex: 1;
   min-width: 0;
@@ -460,6 +595,59 @@ async function fetchUserStanding() {
   text-align: right;
 }
 
+/* Clause column */
+.clause-col {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.clause-label {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  color: var(--ink-400);
+}
+
+.clause-value {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--lime);
+  margin-top: 2px;
+}
+
+/* Buy button */
+.buy-btn {
+  flex-shrink: 0;
+  height: 36px;
+  font-size: 12px;
+  padding: 0 14px;
+}
+
+.buy-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Buy result messages */
+.buy-msg {
+  text-align: center;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+
+.buy-msg-ok {
+  background: rgba(199, 255, 61, 0.08);
+  color: var(--lime);
+  border: 1px solid var(--lime);
+}
+
+.buy-msg-err {
+  background: rgba(255, 98, 98, 0.06);
+  color: var(--down);
+  border: 1px solid var(--down);
+}
+
 /* Fallback badge for unexpected position codes */
 .pos-other {
   background: var(--ink-500);
@@ -469,6 +657,14 @@ async function fetchUserStanding() {
 @media (max-width: 767px) {
   .title {
     font-size: 40px;
+  }
+
+  .player-row-buy {
+    flex-wrap: wrap;
+  }
+
+  .clause-value {
+    font-size: 14px;
   }
 }
 </style>
