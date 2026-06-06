@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -316,4 +317,69 @@ func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	status.Reason = string(w.Reason)
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": status})
+}
+
+// 8. PayClause - buy a rival's player by paying their release clause, without the
+// owner's consent. The buyer is the authenticated user; the seller is whoever
+// currently owns the player. Requires the market to be open (Sprint 3 1.A rule).
+// POST /leagues/:id/market/clause/:player_id
+func (h *MarketHandler) PayClause(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid league ID"})
+		return
+	}
+
+	playerID, err := strconv.ParseInt(c.Param("player_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid player ID"})
+		return
+	}
+
+	// Security Check: User must be a member of the league.
+	if !h.requireMember(c, leagueID, userID) {
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Market window (Sprint 3 1.A): no money moves while the market is closed.
+	matchdays, err := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve matchdays"})
+		return
+	}
+	if w := market.ComputeWindow(time.Now(), h.loc, matchdays); !w.IsOpen {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":          "market is closed",
+			"reason":         string(w.Reason),
+			"next_change_at": w.NextChangeAt,
+		})
+		return
+	}
+
+	result, err := h.teamRepo.PayClauseTx(ctx, leagueID, userID, playerID)
+	if err != nil {
+		switch {
+		case errors.Is(err, postgres.ErrClausePlayerFree):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "This player is a free agent; sign him through the market instead."})
+		case errors.Is(err, postgres.ErrClauseSelfPurchase):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "You already own this player."})
+		case errors.Is(err, postgres.ErrClauseInsufficient):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient budget to pay the release clause."})
+		case errors.Is(err, postgres.ErrClauseBuyerNotMember):
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not a member of this league."})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to pay the release clause."})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Release clause paid", "data": result})
 }

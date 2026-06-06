@@ -168,6 +168,53 @@ func (r *PlayerRepo) GetAvailableForLeague(ctx context.Context, leagueID int64) 
 	return players, rows.Err()
 }
 
+// GetFreeAgentsForLeague returns the players eligible to be listed in a league's
+// market by the market-refresh command: real, active players (external_id set,
+// is_active TRUE) that are NOT owned by anyone in the league (team_players) and
+// do NOT already have an active listing there. Ordered by market_value DESC so
+// callers can apply their own selection on top.
+//
+// Distinct from GetAvailableForLeague (used by the market endpoint), which does
+// not require external_id and does not exclude already-listed players.
+func (r *PlayerRepo) GetFreeAgentsForLeague(ctx context.Context, leagueID int64) ([]models.Player, error) {
+	query := `
+		SELECT p.id, p.first_name, p.last_name, p.position, p.team_name,
+		       p.market_value, p.is_active, p.created_at, p.updated_at
+		FROM players p
+		WHERE p.is_active = TRUE
+		  AND p.external_id IS NOT NULL
+		  AND NOT EXISTS (
+		      SELECT 1 FROM team_players tp
+		      WHERE tp.league_id = $1 AND tp.player_id = p.id
+		  )
+		  AND NOT EXISTS (
+		      SELECT 1 FROM market_listings ml
+		      WHERE ml.league_id = $1 AND ml.player_id = p.id AND ml.status = 'active'
+		  )
+		ORDER BY p.market_value DESC`
+
+	rows, err := r.pool.Query(ctx, query, leagueID)
+	if err != nil {
+		return nil, fmt.Errorf("get free agents for league: %w", err)
+	}
+	defer rows.Close()
+
+	var players []models.Player
+	for rows.Next() {
+		var p models.Player
+		err := rows.Scan(
+			&p.ID, &p.FirstName, &p.LastName, &p.Position,
+			&p.TeamName, &p.MarketValue, &p.IsActive,
+			&p.CreatedAt, &p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan player: %w", err)
+		}
+		players = append(players, p)
+	}
+	return players, rows.Err()
+}
+
 // Update modifies an existing player.
 func (r *PlayerRepo) Update(ctx context.Context, player *models.Player) error {
 	query := `
