@@ -1,8 +1,6 @@
 <template>
   <AppShell>
     <div class="market">
-      <StatusBar v-if="isMobile" />
-
       <!-- header -->
       <header class="page-head" :class="{ mobile: isMobile }">
         <div class="head-left">
@@ -199,7 +197,6 @@ import { useRoute, useRouter } from "vue-router";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
 import AppShell from "@/design-system/AppShell.vue";
-import StatusBar from "@/design-system/primitives/StatusBar.vue";
 import PlayerPhoto from "@/design-system/primitives/PlayerPhoto.vue";
 import TeamCrest from "@/design-system/primitives/TeamCrest.vue";
 import PlayerCard from "@/design-system/components/PlayerCard.vue";
