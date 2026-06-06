@@ -6,25 +6,36 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/market"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
 // MarketHandler handles the logic for the market endpoints.
 type MarketHandler struct {
-	marketRepo *postgres.MarketRepo
-	playerRepo *postgres.PlayerRepo
-	teamRepo   *postgres.TeamRepo
-	leagueRepo *postgres.LeagueRepo // ADDED: League repository for member validation
+	marketRepo   *postgres.MarketRepo
+	playerRepo   *postgres.PlayerRepo
+	teamRepo     *postgres.TeamRepo
+	leagueRepo   *postgres.LeagueRepo // ADDED: League repository for member validation
+	matchdayRepo *postgres.MatchdayRepo
+	loc          *time.Location // Europe/Madrid, for the market trading window
 }
 
 // NewMarketHandler creates a new instance by injecting the required repositories.
-func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.PlayerRepo, teamRepo *postgres.TeamRepo, leagueRepo *postgres.LeagueRepo) *MarketHandler {
+// It loads the market timezone once; if loading fails (the embedded tzdata is
+// somehow unavailable), it falls back to UTC so the handler still works.
+func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.PlayerRepo, teamRepo *postgres.TeamRepo, leagueRepo *postgres.LeagueRepo, matchdayRepo *postgres.MatchdayRepo) *MarketHandler {
+	loc, err := market.Location()
+	if err != nil {
+		loc = time.UTC
+	}
 	return &MarketHandler{
-		marketRepo: marketRepo,
-		playerRepo: playerRepo,
-		teamRepo:   teamRepo,
-		leagueRepo: leagueRepo,
+		marketRepo:   marketRepo,
+		playerRepo:   playerRepo,
+		teamRepo:     teamRepo,
+		leagueRepo:   leagueRepo,
+		matchdayRepo: matchdayRepo,
+		loc:          loc,
 	}
 }
 
@@ -260,7 +271,10 @@ func (h *MarketHandler) GetRecentActivity(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": events})
 }
 
-// 7. GetMarketStatus - Returns the market status and closing time.
+// 7. GetMarketStatus - Returns the market trading-window state for a league.
+// is_open / next_change_at / reason come from the market window rule (19:00–00:00
+// Europe/Madrid AND no matchday in play); active_listings / your_active_bids /
+// max_bids_per_user come from the listing/bid counters.
 func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {
@@ -279,11 +293,27 @@ func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 		return
 	}
 
-	status, err := h.marketRepo.GetMarketStatus(c.Request.Context(), leagueID, userID)
+	ctx := c.Request.Context()
+
+	status, err := h.marketRepo.GetMarketStatus(ctx, leagueID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve market status"})
 		return
 	}
+
+	// Trading-window state: depends on the time window and the league's matchdays.
+	// An empty matchdays slice means "no active matchday" (the rule then depends
+	// only on the time window) — no error.
+	matchdays, err := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve matchdays"})
+		return
+	}
+
+	w := market.ComputeWindow(time.Now(), h.loc, matchdays)
+	status.IsOpen = w.IsOpen
+	status.NextChangeAt = w.NextChangeAt
+	status.Reason = string(w.Reason)
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": status})
 }
