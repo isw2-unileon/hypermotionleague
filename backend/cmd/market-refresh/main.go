@@ -91,8 +91,8 @@ func run(dryRun bool, perLeague int, onlyLeague int64) error {
 	playerRepo := postgres.NewPlayerRepo(pool.Pool)
 	marketRepo := postgres.NewMarketRepo(pool.Pool)
 
-	// Per-process RNG seeded from the clock drives the value-biased rotation, so
-	// each daily run offers a different mix (see selectFreeAgents).
+	// #nosec G404 -- el mercado no necesita aleatoriedad criptográfica;
+	// math/rand es suficiente para barajar la rotación diaria de jugadores.
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	expiresAt := time.Now().Add(listingTTL)
 
