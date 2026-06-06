@@ -376,11 +376,16 @@ async function fetchRivalSquad() {
   }
 }
 
+interface ClausePaymentResponse {
+  data?: { amount_paid?: number };
+}
+
 async function confirmBuy(tp: TeamPlayerWithDetails) {
   const name = `${tp.player.first_name} ${tp.player.last_name}`;
-  const price = millions(tp.player.market_value);
+  // The release clause is computed server-side (market_value x2 by default), so
+  // we don't show a fixed price up front; the exact amount paid is reported back.
   const ok = window.confirm(
-    `¿Pagar la cláusula de ${price} por ${name}? Se descontará de tu saldo.`,
+    `¿Pagar la cláusula de rescisión de ${name}? El importe se descontará de tu saldo.`,
   );
   if (!ok) return;
 
@@ -388,10 +393,12 @@ async function confirmBuy(tp: TeamPlayerWithDetails) {
   buySuccess.value = "";
   buyError.value = "";
   try {
-    await api.post(
-      `/api/v1/leagues/${leagueId.value}/users/${userId.value}/team/${tp.player_id}/buy`,
+    const res = await api.post<ClausePaymentResponse>(
+      `/api/v1/leagues/${leagueId.value}/market/clause/${tp.player_id}`,
     );
-    buySuccess.value = `Has fichado a ${name} por ${price}`;
+    const paid = res?.data?.amount_paid;
+    buySuccess.value =
+      paid != null ? `Has fichado a ${name} por ${millions(paid)}` : `Has fichado a ${name}`;
     // Refresh the squad to reflect the change
     rivalPlayers.value = [];
     await fetchRivalSquad();
