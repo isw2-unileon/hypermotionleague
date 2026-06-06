@@ -42,7 +42,7 @@
       <Logo :size="22" />
       <button type="button" class="btn btn-ghost logout-btn logout-btn-mobile" @click="onLogout">
         <svg
-          class="logout-icon"1
+          class="logout-icon"
           width="14"
           height="14"
           viewBox="0 0 16 16"

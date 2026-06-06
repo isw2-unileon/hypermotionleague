@@ -34,7 +34,8 @@ export function useMarketCountdown(leagueId: () => number | null) {
       if (!res.ok) return;
       const body: ApiEnvelope<MarketStatus> = await res.json();
       status.value = body.data;
-    } catch {
+    } catch (e){
+        void e;
     }
   }
 
