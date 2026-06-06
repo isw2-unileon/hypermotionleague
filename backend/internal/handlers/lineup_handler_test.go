@@ -132,6 +132,9 @@ func (m *mockMatchdayRepo) UpdateLineupPoints(_ context.Context, _ int64, _ int)
 func (m *mockMatchdayRepo) GetStandings(_ context.Context, _ int64, _ *int64) (*models.Standings, error) {
 	return nil, nil
 }
+func (m *mockMatchdayRepo) GetDefaultLineup(_ context.Context, _, _ int64) (*models.LineupWithPlayers, error) {
+	return nil, nil
+}
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -152,10 +155,12 @@ func futureMatchday() models.Matchday {
 	return models.Matchday{ID: 10, LeagueID: 1, Number: 1, StartDate: time.Now().Add(24 * time.Hour)}
 }
 
+func int64Ptr(v int64) *int64 { return &v }
+
 // valid442 builds an 11-player 4-4-2 request (1 GK, 4 DEF, 4 MID, 2 FWD).
 func valid442() models.CreateLineupRequest {
 	return models.CreateLineupRequest{
-		MatchdayID: 10,
+		MatchdayID: int64Ptr(10),
 		Players: []models.LineupPlayerInput{
 			{PlayerID: 1, Position: models.PositionGK, IsStarter: true},
 			{PlayerID: 2, Position: models.PositionDEF, IsStarter: true},
@@ -207,7 +212,7 @@ func TestSaveLineup_DeadlinePassed(t *testing.T) {
 func TestSaveLineup_InvalidFormation_MultipleGK(t *testing.T) {
 	md := futureMatchday()
 	req := models.CreateLineupRequest{
-		MatchdayID: 10,
+		MatchdayID: int64Ptr(10),
 		Players: []models.LineupPlayerInput{
 			{PlayerID: 1, Position: models.PositionGK, IsStarter: true},
 			{PlayerID: 2, Position: models.PositionGK, IsStarter: true},
@@ -241,7 +246,7 @@ func TestSaveLineup_InvalidFormation_TooFewDEF(t *testing.T) {
 	md := futureMatchday()
 	// 1 GK + 2 DEF + 5 MID + 3 FWD = 11, but DEF < 3
 	req := models.CreateLineupRequest{
-		MatchdayID: 10,
+		MatchdayID: int64Ptr(10),
 		Players: []models.LineupPlayerInput{
 			{PlayerID: 1, Position: models.PositionGK, IsStarter: true},
 			{PlayerID: 2, Position: models.PositionDEF, IsStarter: true},
@@ -332,7 +337,7 @@ func TestSaveLineup_NotMember(t *testing.T) {
 func TestSaveLineup_WrongStarters(t *testing.T) {
 	md := futureMatchday()
 	req := models.CreateLineupRequest{
-		MatchdayID: 10,
+		MatchdayID: int64Ptr(10),
 		Players: []models.LineupPlayerInput{
 			{PlayerID: 1, Position: models.PositionGK, IsStarter: true},
 			{PlayerID: 2, Position: models.PositionDEF, IsStarter: true},

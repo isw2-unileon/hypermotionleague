@@ -111,6 +111,8 @@ func main() {
 		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 
 		// Lineup
+		protected.GET("/leagues/:id/lineup/default", lineupHandler.GetDefaultLineup)
+		protected.PUT("/leagues/:id/lineup/default", lineupHandler.SaveDefaultLineup)
 		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
 		protected.PUT("/leagues/:id/matchdays/:number/lineup", lineupHandler.SaveLineup)
 		protected.DELETE("/leagues/:id/matchdays/:number/lineup/players/:player_id", lineupHandler.RemoveLineupPlayer)
