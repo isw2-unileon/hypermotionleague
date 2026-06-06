@@ -49,7 +49,8 @@ migrate:
 	           backend/db/migrations/003_fix_lineup_position_constraint.up.sql \
 	           backend/db/migrations/004_add_teams_and_apifootball_fields.up.sql \
 	           backend/db/migrations/005_extend_player_points_stats.up.sql \
-	           backend/db/migrations/006_unique_bid_per_listing_user.up.sql; do \
+	           backend/db/migrations/006_unique_bid_per_listing_user.up.sql \
+	           backend/db/migrations/007_add_release_clause.up.sql; do \
 
 	    v=$$(basename $$f .up.sql); \
 	    if ! psql "$(DB_URL)" -tAc "SELECT 1 FROM schema_migrations WHERE version='$$v'" 2>/dev/null | grep -q 1; then \
