@@ -94,8 +94,7 @@ async function createLeague() {
   submitting.value = true;
   try {
     const league = await api.post<{ id: number }>("/api/v1/leagues", form);
-    router.push(`/leagues/${league.id}`);
-  } catch (e) {
+    router.push({ path: `/leagues/${league.id}`, query: { created: "1" } });  } catch (e) {
     error.value = e instanceof Error ? e.message : "Error al crear la liga";
   } finally {
     submitting.value = false;
