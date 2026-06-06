@@ -65,6 +65,20 @@ type ActivityEvent struct {
 	Amount     int       `json:"amount"`
 }
 
+// ClauseResult is the outcome of a successful release-clause purchase, returned
+// to the buyer. Amounts are in the same unit as budget/purchase_price.
+type ClauseResult struct {
+	LeagueID         int64  `json:"league_id"`
+	PlayerID         int64  `json:"player_id"`
+	PlayerName       string `json:"player_name"`
+	PreviousOwnerID  int64  `json:"previous_owner_id"`
+	NewOwnerID       int64  `json:"new_owner_id"`       // the buyer
+	AmountPaid       int    `json:"amount_paid"`        // clause charged
+	NewReleaseClause int    `json:"new_release_clause"` // recomputed for the new owner
+	BuyerBudget      int    `json:"buyer_budget"`       // buyer budget after paying
+	SellerBudget     int    `json:"seller_budget"`      // seller budget after receiving
+}
+
 // MarketStatus represents the current state of a league market.
 //
 // IsOpen / NextChangeAt / Reason describe the trading window (see package

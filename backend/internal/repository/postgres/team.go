@@ -5,9 +5,24 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/market"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Release-clause operation errors. The handler maps each to an HTTP response.
+var (
+	// ErrClausePlayerFree: the player has no owner in the league, so there is no
+	// clause to pay (sign them through the normal market instead).
+	ErrClausePlayerFree = errors.New("player is a free agent: no clause to pay")
+	// ErrClauseSelfPurchase: the buyer already owns the player. Also the guard
+	// that makes a double-submit safe (see PayClauseTx).
+	ErrClauseSelfPurchase = errors.New("buyer already owns this player")
+	// ErrClauseInsufficient: the buyer's budget is below the clause.
+	ErrClauseInsufficient = errors.New("insufficient budget for the release clause")
+	// ErrClauseBuyerNotMember: the buyer is not a member of the league.
+	ErrClauseBuyerNotMember = errors.New("buyer is not a member of this league")
 )
 
 // TeamRepo implements repository.TeamRepository for PostgreSQL.
@@ -167,83 +182,162 @@ func (r *TeamRepo) TransferPlayer(ctx context.Context, leagueID, oldUserID, newU
 	return tx.Commit(ctx)
 }
 
-// PayReleaseTx pays the release clause to buy a player from another user.
-// Transactional with FOR UPDATE to prevent concurrent purchases and validate budget.
-// Release clause = player's market_value (simplest rule for MVP).
-func (r *TeamRepo) PayReleaseTx(ctx context.Context, leagueID, buyerID, sellerID, playerID int64) (clauseAmount int, err error) {
+// PayClauseTx executes a release-clause purchase: the buyer pays a player's
+// clause and the player moves from its current owner to the buyer, with the
+// clause amount transferred from the buyer's budget to the seller's — all in one
+// transaction with FOR UPDATE locks, mirroring ResolveListingTx.
+//
+// The seller is whoever currently owns the player (discovered under the lock,
+// not passed in by the caller), which is what makes a double-submit safe: the
+// first call moves ownership to the buyer; a second concurrent/retried call,
+// after locking the same team_players row, sees the buyer as the owner and
+// returns ErrClauseSelfPurchase instead of charging again.
+//
+// Lock order matches the resolver: the team_players row first (FOR UPDATE OF
+// tp), then the two league_members rows in ascending user_id order, which is
+// deadlock-safe among concurrent clause purchases.
+//
+// The clause charged is the stored release_clause, or market_value × 2 as a
+// fallback for legacy rows (see market.ReleaseClause). The player's new clause
+// is recomputed from the current market_value so it does not keep the previous
+// owner's clause.
+func (r *TeamRepo) PayClauseTx(ctx context.Context, leagueID, buyerID, playerID int64) (*models.ClauseResult, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return 0, fmt.Errorf("begin tx: %w", err)
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	// 1. Lock buyer's member row to serialize concurrent purchases
-	var buyerBudget int
+	// 1. Lock the ownership row and read the current owner + pricing inputs.
+	var (
+		tpID         int64
+		sellerID     int64
+		storedClause *int64 // NULL for legacy rows
+		marketValue  int
+		firstName    string
+		lastName     string
+	)
 	err = tx.QueryRow(ctx, `
-		SELECT budget FROM league_members
-		WHERE league_id = $1 AND user_id = $2
-		FOR UPDATE
-	`, leagueID, buyerID).Scan(&buyerBudget)
-	if err != nil {
-		return 0, fmt.Errorf("lock buyer row: %w", err)
-	}
-
-	// 2. Verify the player belongs to the seller in this league
-	var tpID int64
-	err = tx.QueryRow(ctx, `
-		SELECT tp.id FROM team_players tp
-		WHERE tp.league_id = $1 AND tp.user_id = $2 AND tp.player_id = $3
-		FOR UPDATE
-	`, leagueID, sellerID, playerID).Scan(&tpID)
+		SELECT tp.id, tp.user_id, tp.release_clause, p.market_value, p.first_name, p.last_name
+		FROM team_players tp
+		INNER JOIN players p ON p.id = tp.player_id
+		WHERE tp.league_id = $1 AND tp.player_id = $2
+		FOR UPDATE OF tp
+	`, leagueID, playerID).Scan(&tpID, &sellerID, &storedClause, &marketValue, &firstName, &lastName)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, errors.New("PLAYER_NOT_OWNED")
+			return nil, ErrClausePlayerFree
 		}
-		return 0, fmt.Errorf("lock player row: %w", err)
+		return nil, fmt.Errorf("lock ownership row: %w", err)
 	}
 
-	// 3. Get the player's market value as the release clause
-	var marketValue int
-	err = tx.QueryRow(ctx, `
-		SELECT market_value FROM players WHERE id = $1
-	`, playerID).Scan(&marketValue)
+	// 2. A buyer cannot pay the clause of a player they already own. This also
+	//    catches a double-submit: after the first purchase the buyer is owner.
+	if sellerID == buyerID {
+		return nil, ErrClauseSelfPurchase
+	}
+
+	// 3. Lock both member rows in ascending user_id order (deadlock-safe).
+	budgets := make(map[int64]int, 2)
+	rows, err := tx.Query(ctx, `
+		SELECT user_id, budget FROM league_members
+		WHERE league_id = $1 AND user_id IN ($2, $3)
+		ORDER BY user_id
+		FOR UPDATE
+	`, leagueID, buyerID, sellerID)
 	if err != nil {
-		return 0, fmt.Errorf("get player market value: %w", err)
+		return nil, fmt.Errorf("lock member rows: %w", err)
 	}
-	clauseAmount = marketValue
-
-	// 4. Validate buyer has enough budget
-	if buyerBudget < clauseAmount {
-		return 0, errors.New("INSUFFICIENT_BUDGET")
+	for rows.Next() {
+		var uid int64
+		var b int
+		if err := rows.Scan(&uid, &b); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan member budget: %w", err)
+		}
+		budgets[uid] = b
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate member rows: %w", err)
 	}
 
-	// 5. Transfer: remove from seller, add to buyer
+	buyerBudget, ok := budgets[buyerID]
+	if !ok {
+		return nil, ErrClauseBuyerNotMember
+	}
+	sellerBudget, ok := budgets[sellerID]
+	if !ok {
+		// The owner should always be a member; treat a missing row as data
+		// inconsistency rather than silently proceeding.
+		return nil, fmt.Errorf("seller %d is not a member of league %d", sellerID, leagueID)
+	}
+
+	// 4. Compute the clause (stored, or market_value × 2 fallback) and validate.
+	stored := 0
+	if storedClause != nil {
+		stored = int(*storedClause)
+	}
+	clause := market.ReleaseClause(stored, marketValue)
+	if buyerBudget < clause {
+		return nil, ErrClauseInsufficient
+	}
+	newClause := market.NewReleaseClause(marketValue)
+	newBuyerBudget, newSellerBudget := market.ApplyClausePayment(buyerBudget, sellerBudget, clause)
+
+	// 5. Reassign ownership to the buyer, set the price paid and the new clause.
+	//    UPDATE (not delete+insert) keeps uq_team_player satisfied throughout.
 	if _, err = tx.Exec(ctx, `
-		DELETE FROM team_players WHERE league_id = $1 AND user_id = $2 AND player_id = $3
-	`, leagueID, sellerID, playerID); err != nil {
-		return 0, fmt.Errorf("remove from seller: %w", err)
+		UPDATE team_players
+		SET user_id = $1, purchase_price = $2, release_clause = $3, acquired_at = NOW()
+		WHERE id = $4
+	`, buyerID, clause, newClause, tpID); err != nil {
+		return nil, fmt.Errorf("reassign player: %w", err)
 	}
 
-	if _, err = tx.Exec(ctx, `
-		INSERT INTO team_players (league_id, user_id, player_id, purchase_price) VALUES ($1, $2, $3, $4)
-	`, leagueID, buyerID, playerID, clauseAmount); err != nil {
-		return 0, fmt.Errorf("add to buyer: %w", err)
-	}
-
-	// 6. Update budgets: deduct from buyer, credit seller
+	// 6. Move the money: charge the buyer, credit the seller (relative updates,
+	//    same style as ResolveListingTx; rows are already locked above).
 	if _, err = tx.Exec(ctx, `
 		UPDATE league_members SET budget = budget - $1 WHERE league_id = $2 AND user_id = $3
-	`, clauseAmount, leagueID, buyerID); err != nil {
-		return 0, fmt.Errorf("deduct buyer budget: %w", err)
+	`, clause, leagueID, buyerID); err != nil {
+		return nil, fmt.Errorf("charge buyer: %w", err)
 	}
-
 	if _, err = tx.Exec(ctx, `
 		UPDATE league_members SET budget = budget + $1 WHERE league_id = $2 AND user_id = $3
-	`, clauseAmount, leagueID, sellerID); err != nil {
-		return 0, fmt.Errorf("credit seller budget: %w", err)
+	`, clause, leagueID, sellerID); err != nil {
+		return nil, fmt.Errorf("credit seller: %w", err)
 	}
 
-	return clauseAmount, tx.Commit(ctx)
+	// 7. Remove the player from the seller's not-yet-finished lineups, so he is
+	//    not fielded by his former owner. Past (already-played) matchdays are
+	//    left untouched to preserve scored history.
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM lineup_players
+		WHERE player_id = $1
+		  AND lineup_id IN (
+		      SELECT l.id FROM lineups l
+		      INNER JOIN matchdays m ON m.id = l.matchday_id
+		      WHERE l.league_id = $2 AND l.user_id = $3 AND m.end_date > NOW()
+		  )
+	`, playerID, leagueID, sellerID); err != nil {
+		return nil, fmt.Errorf("remove from seller lineups: %w", err)
+	}
+
+	result := &models.ClauseResult{
+		LeagueID:         leagueID,
+		PlayerID:         playerID,
+		PlayerName:       firstName + " " + lastName,
+		PreviousOwnerID:  sellerID,
+		NewOwnerID:       buyerID,
+		AmountPaid:       clause,
+		NewReleaseClause: newClause,
+		BuyerBudget:      newBuyerBudget,
+		SellerBudget:     newSellerBudget,
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit clause payment: %w", err)
+	}
+	return result, nil
 }
 
 // draftQuota describes how many players of a position make up an initial squad.
