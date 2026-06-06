@@ -259,7 +259,7 @@ interface LineupWithPlayers {
   id: number;
   league_id: number;
   user_id: number;
-  matchday_id: number;
+  matchday_id: number | null;
   total_points: number;
   players: LineupPlayer[];
 }
@@ -420,12 +420,11 @@ function openSubModal(slot: LineupPlayer | null, pos: PlayerPosition, idx: numbe
 
 function selectBenchPlayer(p: LineupPlayer) {
   if (!lineup.value) {
-    if (!currentMatchday.value) return;
     lineup.value = {
       id: 0,
       league_id: Number(selectedLeagueId.value) || 0,
       user_id: 0,
-      matchday_id: currentMatchday.value.id,
+      matchday_id: currentMatchday.value?.id ?? null,
       total_points: 0,
       players: [],
     };
@@ -452,7 +451,7 @@ function selectBenchPlayer(p: LineupPlayer) {
 }
 
 async function saveLineup() {
-  if (!currentMatchday.value || !selectedLeagueId.value || !hasEdits.value) return;
+  if (!selectedLeagueId.value || !hasEdits.value) return;
   saving.value = true;
   saveError.value = '';
   try {
@@ -461,14 +460,28 @@ async function saveLineup() {
       position: p.position,
       is_starter: p.is_starter,
     }));
-    await api.put(
-      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
-      { matchday_id: currentMatchday.value.id, players: reqPlayers },
-    );
-    hasEdits.value = false;
-    lineup.value = await api.get<LineupWithPlayers>(
-      `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
-    );
+
+    if (currentMatchday.value) {
+      // Save to specific matchday
+      await api.put(
+        `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+        { matchday_id: currentMatchday.value.id, players: reqPlayers },
+      );
+      hasEdits.value = false;
+      lineup.value = await api.get<LineupWithPlayers>(
+        `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${currentMatchday.value.number}/lineup`,
+      );
+    } else {
+      // No matchday — save as default lineup
+      await api.put(
+        `/api/v1/leagues/${selectedLeagueId.value}/lineup/default`,
+        { players: reqPlayers },
+      );
+      hasEdits.value = false;
+      lineup.value = await api.get<LineupWithPlayers>(
+        `/api/v1/leagues/${selectedLeagueId.value}/lineup/default`,
+      );
+    }
   } catch (e) {
     saveError.value = e instanceof Error ? e.message : 'Error al guardar la alineación';
   } finally {
@@ -495,14 +508,25 @@ async function onLeagueChange() {
     const teamData = await api.get<UserTeam>(`/api/v1/leagues/${leagueId}/team`);
     squadPlayers.value = teamData.players ?? [];
 
-    // 3. Try to fetch existing lineup for current matchday (may not exist yet — 404 is OK)
+    // 3. Try to fetch existing lineup
     if (currentMatchday.value) {
+      // Matchday exists — try matchday-specific lineup
       try {
         lineup.value = await api.get<LineupWithPlayers>(
           `/api/v1/leagues/${leagueId}/matchdays/${currentMatchday.value.number}/lineup`,
         );
       } catch {
-        lineup.value = null; // no lineup saved yet for this matchday
+        lineup.value = null;
+      }
+    }
+    // Fallback: try default lineup if no matchday or no matchday-specific lineup
+    if (!lineup.value) {
+      try {
+        lineup.value = await api.get<LineupWithPlayers>(
+          `/api/v1/leagues/${leagueId}/lineup/default`,
+        );
+      } catch {
+        lineup.value = null;
       }
     }
   } catch (e) {
