@@ -20,7 +20,7 @@
 
       <div class="spacer" />
 
-      <MarketCountdown time-text="04:18:42" />
+      <MarketCountdown :label="label" :time-text="timeText" :subtitle="subtitle" />
 
       <button type="button" class="btn btn-ghost logout-btn" @click="onLogout">
         <svg
@@ -74,6 +74,8 @@ import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
 import MarketCountdown from "./MarketCountDown.vue";
+import { useMarketCountdown } from "@/composables/useMarketCountdown";
+
 
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
@@ -87,6 +89,27 @@ interface NavItem {
 
 const route = useRoute();
 const router = useRouter();
+
+// Selected league: For now, we retrieve it from the URL. If the URL contains 
+// /leagues/:id, /squad/:leagueId/:userId, or ?league=ID, we use that ID.
+// If there is no clear league, the countdown is not displayed.
+const selectedLeagueId = computed<number | null>(() => {
+  const params = route.params as Record<string, string | undefined>;
+  const fromParams = params.leagueId ?? params.id;
+  if (fromParams != null) {
+    const n = Number(fromParams);
+    if (!Number.isNaN(n)) return n;
+  }
+  const query = route.query.league;
+  const raw = Array.isArray(query) ? query[0] : query;
+  if (raw != null) {
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return n;
+  }
+  return null;
+});
+
+const { timeText, label, subtitle } = useMarketCountdown(() => selectedLeagueId.value);
 
 const navItems: readonly NavItem[] = [
   { id: "ligas", label: "Mis Ligas", icon: "trophy", route: "/leagues" },
