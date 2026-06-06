@@ -12,7 +12,7 @@ import (
 // ── GetUserTeam tests ────────────────────────────────────────────────────────
 
 func TestGetUserTeam_NoAuth(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
+	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{})
 	r := newRouter(0)
 	r.GET("/leagues/:id/team", h.GetUserTeam)
 
@@ -21,7 +21,7 @@ func TestGetUserTeam_NoAuth(t *testing.T) {
 }
 
 func TestGetUserTeam_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
+	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{})
 	r := newRouter(1)
 	r.GET("/leagues/:id/team", h.GetUserTeam)
 
@@ -34,7 +34,7 @@ func TestGetUserTeam_NotMember(t *testing.T) {
 		fnGetMember: func(_ context.Context, _, _ int64) (*models.LeagueMember, error) {
 			return nil, nil
 		},
-	}, nil)
+	})
 	r := newRouter(1)
 	r.GET("/leagues/:id/team", h.GetUserTeam)
 
@@ -47,7 +47,7 @@ func TestGetUserTeam_TeamNotFound(t *testing.T) {
 		fnGetMember: func(_ context.Context, _, _ int64) (*models.LeagueMember, error) {
 			return &models.LeagueMember{}, nil
 		},
-	}, nil)
+	})
 	r := newRouter(1)
 	r.GET("/leagues/:id/team", h.GetUserTeam)
 
@@ -58,7 +58,7 @@ func TestGetUserTeam_TeamNotFound(t *testing.T) {
 // ── GetUserTeamInLeague tests ────────────────────────────────────────────────
 
 func TestGetUserTeamInLeague_NoAuth(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
+	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{})
 	r := newRouter(0)
 	r.GET("/leagues/:id/users/:userId/team", h.GetUserTeamInLeague)
 
@@ -74,7 +74,7 @@ func TestGetUserTeamInLeague_CallerNotMember(t *testing.T) {
 			}
 			return &models.LeagueMember{}, nil
 		},
-	}, nil)
+	})
 	r := newRouter(1)
 	r.GET("/leagues/:id/users/:userId/team", h.GetUserTeamInLeague)
 
@@ -92,7 +92,7 @@ func TestGetUserTeamInLeague_TargetNotMember(t *testing.T) {
 			}
 			return nil, nil
 		},
-	}, nil)
+	})
 	r := newRouter(1)
 	r.GET("/leagues/:id/users/:userId/team", h.GetUserTeamInLeague)
 
@@ -101,70 +101,10 @@ func TestGetUserTeamInLeague_TargetNotMember(t *testing.T) {
 }
 
 func TestGetUserTeamInLeague_InvalidUserID(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
+	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{})
 	r := newRouter(1)
 	r.GET("/leagues/:id/users/:userId/team", h.GetUserTeamInLeague)
 
 	w := doReq(r, "GET", "/leagues/1/users/abc/team", nil)
 	assertStatusCode(t, w, http.StatusBadRequest)
-}
-
-// ── BuyPlayer tests ──────────────────────────────────────────────────────────
-
-func TestBuyPlayer_NoAuth(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
-	r := newRouter(0)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/1/users/2/team/10/buy", nil)
-	assertStatusCode(t, w, http.StatusUnauthorized)
-}
-
-func TestBuyPlayer_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
-	r := newRouter(1)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/abc/users/2/team/10/buy", nil)
-	assertStatusCode(t, w, http.StatusBadRequest)
-}
-
-func TestBuyPlayer_InvalidSellerID(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
-	r := newRouter(1)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/1/users/abc/team/10/buy", nil)
-	assertStatusCode(t, w, http.StatusBadRequest)
-}
-
-func TestBuyPlayer_InvalidPlayerID(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
-	r := newRouter(1)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/1/users/2/team/abc/buy", nil)
-	assertStatusCode(t, w, http.StatusBadRequest)
-}
-
-func TestBuyPlayer_CannotBuyOwnPlayer(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{}, nil)
-	r := newRouter(1)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/1/users/1/team/10/buy", nil)
-	assertStatusCode(t, w, http.StatusBadRequest)
-}
-
-func TestBuyPlayer_NotMember(t *testing.T) {
-	h := handlers.NewTeamHandler(&mockTeamRepo{}, &mockLeagueRepo{
-		fnGetMember: func(_ context.Context, _, _ int64) (*models.LeagueMember, error) {
-			return nil, nil
-		},
-	}, nil)
-	r := newRouter(1)
-	r.POST("/leagues/:id/users/:userId/team/:playerId/buy", h.BuyPlayer)
-
-	w := doReq(r, "POST", "/leagues/1/users/2/team/10/buy", nil)
-	assertStatusCode(t, w, http.StatusForbidden)
 }
