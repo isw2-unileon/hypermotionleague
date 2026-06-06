@@ -1,237 +1,254 @@
-# HyperMotion League
+<div align="center">
 
-A fantasy football web application for **La Liga Hypermotion** (Spanish Segunda Division). Create leagues with friends, sign real players, set your lineup each matchday, and compete for the top of the standings.
+# ⚽ HyperMotion League
 
----
+**Fantasy football for La Liga Hypermotion — the Spanish Segunda División.**
 
-## Screenshots
+Build a squad of real players, run the transfer market, set your lineup every matchday, and climb the league standings against your friends.
 
-### Login Screen
+### 🔗 Live app → **[hypermotionleague.vercel.app](https://hypermotionleague.vercel.app)**
 
-![Login Screen](docs/screenshots/login.png)
+[![Backend](https://img.shields.io/badge/backend-Go%201.25%20%2B%20Gin-00ADD8)](#tech-stack)
+[![Frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)](#tech-stack)
+[![Database](https://img.shields.io/badge/database-PostgreSQL%20%2F%20Supabase-3ECF8E)](#tech-stack)
 
-### Register Screen
-
-![Register Screen](docs/screenshots/register.png)
-
-### My Leagues
-
-![My Leagues](docs/screenshots/myleagues.png)
-
-More screens will be added soon!
-
-## Features
-
-### Authentication
-
-- Email/password registration and login
-- Google and Apple sign-in via Supabase OAuth
-- JWT-based session management with automatic token handling
-- Auth guard — unauthenticated users are redirected to the login screen
-
-### Leagues
-
-- Create private leagues with custom budget and member limits
-- Join leagues via shareable invite codes
-- View league members and settings
-- Owner-only league deletion with confirmation
-
-### Real Football Data
-
-- 22 real teams from La Liga Hypermotion imported from API-Football
-- 60+ real players with positions, photos, and nationalities
-- 468 real fixtures with scores and match status
-- Import script that can be re-run safely (upsert logic)
-
-### Coming Soon
-
-- Transfer market with bidding system (max 5 active bids per user)
-- Lineup editor with formation selection (4-3-3, 4-4-2, etc.)
-- League standings and matchday-by-matchday scoring
-- Player points based on real match performance
-- News feed from sports media
+</div>
 
 ---
 
-## Tech Stack
+## What you can do
 
-| Layer    | Technology                                  |
-| -------- | ------------------------------------------- |
-| Backend  | Go 1.25, Gin                                |
-| Frontend | Vue 3, TypeScript, Vite                     |
-| Styling  | Tailwind CSS                                |
-| Database | PostgreSQL (Supabase)                       |
-| Auth     | Custom JWT + Supabase OAuth (Google, Apple) |
-| Testing  | Vitest, Playwright, Go test                 |
+HyperMotion League turns the real Segunda División season into a fantasy competition. Sign up, create or join a private league, and manage your own team across the campaign.
 
----
-
-## Project Structure
-
-```
-hypermotionleague/
-├── backend/
-│   ├── cmd/server/          # Server entry point
-│   ├── internal/
-│   │   ├── auth/            # JWT generation and validation
-│   │   ├── config/          # Environment variable loading
-│   │   ├── db/              # Database connection pool
-│   │   ├── handlers/        # HTTP request handlers
-│   │   ├── middleware/       # JWT auth middleware
-│   │   ├── models/          # Domain entities
-│   │   └── repository/      # Data access layer (interfaces + PostgreSQL impl)
-│   ├── db/
-│   │   ├── migrations/      # SQL schema migrations (001, 002, 003)
-│   │   └── seeds/           # Sample data for development
-│   └── scripts/             # Data import from API-Football
-├── frontend/
-│   └── src/
-│       ├── layouts/         # App shell with bottom navigation
-│       ├── lib/             # API client, Supabase config
-│       ├── router/          # Vue Router with auth guards
-│       └── views/           # Page components
-├── e2e/                     # Playwright end-to-end tests
-├── .github/workflows/       # CI/CD pipelines
-└── Makefile                 # Dev commands
-```
+- **Create & join leagues** — spin up a private league with a custom budget and member limit, then invite friends with a shareable join code.
+- **Sign real players** — pick from real La Liga Hypermotion squads imported from API-Football, complete with positions, photos, and nationalities.
+- **Run the transfer market** — browse available players, place bids (with anti-abuse limits on active bids), follow a live activity feed, and track listing status.
+- **Set your lineup** — choose a formation and your starters for each matchday from the players you own.
+- **Score real points** — player performance is scored from real match results and rolled up matchday by matchday.
+- **Compete on the table** — follow overall and per-matchday standings to see who's winning the league.
+- **Sign in your way** — email/password or Google / Apple OAuth via Supabase, with JWT-based sessions.
 
 ---
 
-## Getting Started
+## Tech stack
+
+| Layer         | Technology                                                       |
+| ------------- | ---------------------------------------------------------------- |
+| Backend       | Go 1.25, Gin, pgx (PostgreSQL driver)                            |
+| Frontend      | Vue 3, TypeScript, Vite, Vue Router                              |
+| Styling       | Tailwind CSS v4                                                  |
+| Database      | PostgreSQL (Supabase)                                            |
+| Auth          | Custom JWT + Supabase OAuth (Google, Apple)                      |
+| External data | API-Football (teams, players, fixtures)                          |
+| Testing       | Go test, Vitest, Playwright                                      |
+| Hosting       | **Vercel** (frontend) · **Render** (backend) · **Supabase** (DB) |
+
+---
+
+## Run it locally
+
+Clone the repo and you can have the full stack running with a handful of `make` commands.
 
 ### Prerequisites
 
-- Go 1.25+
-- Node.js 20+
-- A [Supabase](https://supabase.com) project (free tier works)
-- An [API-Football](https://www.api-football.com/) key (free tier, optional — for importing real player data)
+- **Go** 1.25+
+- **Node.js** 20+
+- **PostgreSQL** — either a free [Supabase](https://supabase.com) project or a local instance (a `docker-compose.yml` is included)
+- An [API-Football](https://www.api-football.com/) key (free tier) — _only_ needed if you want to re-import real data
 
-### 1. Clone and install dependencies
+### 1. Clone and install
 
 ```bash
-git clone https://github.com/isw2-unileon/hypermotionleague.git
+git clone git@github.com:isw2-unileon/hypermotionleague.git
 cd hypermotionleague
 make install
 ```
 
-### 2. Configure environment
+`make install` pulls Go modules, installs the dev tooling (Air for hot reload, golangci-lint), and runs `npm ci` for both the frontend and the e2e suite.
+
+### 2. Configure environment variables
+
+**Backend** — copy the template and fill in your values:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and fill in:
-
 ```env
-# Database
-DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@db.YOUR_PROJECT.supabase.co:5432/postgres
+PORT=8080
+GIN_MODE=debug
+CORS_ALLOW_ORIGINS=http://localhost:5173,http://localhost:3000
 
-# Auth
+DATABASE_URL=postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
 JWT_SECRET=a-long-random-secret
 
-# Supabase (for OAuth)
-SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+SUPABASE_URL=https://[PROJECT-REF].supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key
 
-# API-Football (optional, for data import)
+# Optional — only for re-importing real data
 API_FOOTBALL_KEY=your-api-key
 ```
 
-Create `frontend/.env`:
+**Frontend** — create `frontend/.env`:
 
 ```env
-VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+# Leave VITE_API_URL empty in local dev so requests go through the Vite proxy
+VITE_API_URL=
+
+VITE_SUPABASE_URL=https://[PROJECT-REF].supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+> 💡 Prefer a fully local database? Run `docker compose up -d` to start PostgreSQL on port `5433`, and point `DATABASE_URL` at it.
+
 ### 3. Set up the database
 
-Run the migration files **in order** in Supabase Dashboard > SQL Editor:
-
-1. `backend/db/migrations/001_initial_schema.up.sql` — Core tables
-2. `backend/db/migrations/002_add_auth_provider.up.sql` — OAuth support
-3. `backend/db/migrations/003_add_api_football_tables.up.sql` — Teams, fixtures, player metadata
-
-### 4. Import real football data (optional)
+Apply the schema migrations and load seed data. Both targets are idempotent, so they're safe to re-run:
 
 ```bash
-go run backend/scripts/import_data.go
+make migrate DB_URL="<your-database-url>"
+make seed    DB_URL="<your-database-url>"
 ```
 
-This imports teams, players, and fixtures from API-Football for La Liga Hypermotion. The script uses upsert logic, so it's safe to run multiple times.
+Migrations live in `backend/db/migrations/` and the seed data in `backend/db/seeds/`.
 
-### 5. Run the app
+### 4. (Optional) Import real football data
+
+To refresh teams, players, and fixtures straight from API-Football (upsert logic — safe to re-run):
 
 ```bash
-# Terminal 1 — Backend (port 8080)
+go run ./backend/cmd/ingest
+```
+
+### 5. Start the app
+
+```bash
+# Terminal 1 — backend with hot reload (port 8080)
 make run-backend
 
-# Terminal 2 — Frontend (port 5173)
+# Terminal 2 — frontend dev server (port 5173)
 make run-frontend
 ```
 
-Open **http://localhost:5173**
+Open **http://localhost:5173** and you're in. 🎉
 
 ---
 
-## API Endpoints
+## Deploying
+
+The production app runs across three managed services. The repo is set up so each piece deploys independently from the same monorepo.
+
+### Frontend → Vercel
+
+- Connect the repo and set the project root to `frontend/`.
+- Build command `npm run build`, output directory `dist`. `frontend/vercel.json` already handles SPA routing rewrites.
+- Set environment variables in the Vercel project: `VITE_API_URL` (the full public Render URL, no trailing slash), `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
+
+### Backend → Render
+
+- Deploy as a Docker service using `backend/Dockerfile`. **Keep the build context at the repo root** — the monorepo is a single Go module rooted there.
+- On Render set _Dockerfile Path_ = `backend/Dockerfile`.
+- Provide the env vars: `DATABASE_URL`, `JWT_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, and `CORS_ALLOW_ORIGINS` (include your Vercel domain). Render injects `PORT` automatically.
+
+### Database → Supabase
+
+A hosted PostgreSQL project. Run the migrations (`make migrate`) against it and configure Supabase Auth for Google/Apple OAuth.
+
+---
+
+## Project layout
+
+```
+hypermotionleague/
+├── backend/
+│   ├── cmd/
+│   │   ├── server/          # HTTP API entry point
+│   │   ├── ingest/          # Import real data from API-Football
+│   │   ├── resolve/         # Data resolution job
+│   │   └── sync-players/    # Player sync job
+│   ├── internal/
+│   │   ├── auth/            # JWT generation & validation
+│   │   ├── handlers/        # HTTP handlers (auth, leagues, market, lineup, …)
+│   │   ├── middleware/      # JWT auth middleware
+│   │   ├── repository/      # Data access (interfaces + PostgreSQL impl)
+│   │   ├── market/          # Transfer market logic
+│   │   ├── scoring/         # Matchday scoring engine
+│   │   ├── apifootball/     # API-Football client
+│   │   └── models/          # Domain entities
+│   └── db/
+│       ├── migrations/      # Versioned SQL schema
+│       └── seeds/           # Development seed data
+├── frontend/
+│   └── src/
+│       ├── views/          # Pages (Leagues, Market, Lineup, Standings, Team, …)
+│       ├── layouts/        # App shell + navigation
+│       ├── router/         # Vue Router with auth guards
+│       ├── lib/            # API client & Supabase config
+│       └── design-system/  # Shared UI components
+├── e2e/                     # Playwright end-to-end tests
+├── .github/workflows/       # CI pipelines (backend, frontend, e2e, CodeQL)
+├── docker-compose.yml       # Local PostgreSQL
+└── Makefile                 # Dev commands
+```
+
+---
+
+## API reference
 
 ### Public
 
-| Method | Path                    | Description                  |
-| ------ | ----------------------- | ---------------------------- |
-| `GET`  | `/health`               | Health check                 |
-| `GET`  | `/api/db-test`          | Database connection test     |
-| `POST` | `/api/v1/auth/register` | Register with email/password |
-| `POST` | `/api/v1/auth/login`    | Login with email/password    |
-| `POST` | `/api/v1/auth/oauth`    | Supabase OAuth callback      |
+| Method | Path                         | Description                  |
+| ------ | ---------------------------- | ---------------------------- |
+| `GET`  | `/health`                    | Health check                 |
+| `POST` | `/api/v1/auth/register`      | Register with email/password |
+| `POST` | `/api/v1/auth/login`         | Login with email/password    |
+| `POST` | `/api/v1/auth/oauth`         | Supabase OAuth callback      |
+| `GET`  | `/api/v1/players`            | List players                 |
+| `GET`  | `/api/v1/players/:id`        | Player details               |
+| `GET`  | `/api/v1/players/:id/points` | Player points by matchday    |
 
-### Protected (requires `Authorization: Bearer <token>`)
+### Protected — `Authorization: Bearer <token>`
 
-| Method   | Path                          | Description                |
-| -------- | ----------------------------- | -------------------------- |
-| `GET`    | `/api/v1/leagues`             | List user's leagues        |
-| `POST`   | `/api/v1/leagues`             | Create a new league        |
-| `POST`   | `/api/v1/leagues/join`        | Join league by invite code |
-| `GET`    | `/api/v1/leagues/:id`         | Get league details         |
-| `GET`    | `/api/v1/leagues/:id/members` | List league members        |
-| `DELETE` | `/api/v1/leagues/:id`         | Delete league (owner only) |
+| Method   | Path                                           | Description                |
+| -------- | ---------------------------------------------- | -------------------------- |
+| `GET`    | `/api/v1/leagues`                              | List your leagues          |
+| `POST`   | `/api/v1/leagues`                              | Create a league            |
+| `POST`   | `/api/v1/leagues/join`                         | Join by invite code        |
+| `GET`    | `/api/v1/leagues/:id`                          | League details             |
+| `GET`    | `/api/v1/leagues/:id/members`                  | League members             |
+| `DELETE` | `/api/v1/leagues/:id`                          | Delete league (owner only) |
+| `GET`    | `/api/v1/leagues/:id/standings`                | League standings           |
+| `GET`    | `/api/v1/leagues/:id/matchdays`                | List matchdays             |
+| `GET`    | `/api/v1/leagues/:id/matchdays/current`        | Current matchday           |
+| `GET`    | `/api/v1/leagues/:id/team`                     | Your team in the league    |
+| `GET`    | `/api/v1/leagues/:id/matchdays/:number/lineup` | Get lineup                 |
+| `PUT`    | `/api/v1/leagues/:id/matchdays/:number/lineup` | Save lineup                |
+| `GET`    | `/api/v1/leagues/:id/market/players`           | Available players          |
+| `GET`    | `/api/v1/leagues/:id/market/listings`          | Active listings            |
+| `POST`   | `/api/v1/leagues/:id/market/bids`              | Place a bid                |
+| `GET`    | `/api/v1/leagues/:id/market/bids`              | Your bids                  |
+| `DELETE` | `/api/v1/leagues/:id/market/bids/:bid_id`      | Cancel a bid               |
+| `GET`    | `/api/v1/leagues/:id/market/feed`              | Recent market activity     |
 
 ---
 
-## Development Commands
+## Development commands
 
 | Command               | Description                                    |
 | --------------------- | ---------------------------------------------- |
 | `make install`        | Install all dependencies (Go, npm, Playwright) |
-| `make run-backend`    | Backend with hot reload via Air                |
+| `make run-backend`    | Backend with hot reload (Air)                  |
 | `make run-frontend`   | Frontend dev server (Vite)                     |
+| `make migrate`        | Apply pending DB migrations (idempotent)       |
+| `make seed`           | Load seed data (idempotent)                    |
 | `make test`           | Run all tests (Go + Vitest)                    |
 | `make lint`           | Run linters (golangci-lint + ESLint)           |
 | `make e2e`            | Run Playwright E2E tests                       |
-| `make build-backend`  | Build backend binary                           |
-| `make build-frontend` | Build frontend for production                  |
+| `make build-backend`  | Build the backend binary                       |
+| `make build-frontend` | Build the frontend for production              |
 
 ---
 
-## Database Schema
+## Team & license
 
-The app uses 13 tables organized around fantasy football concepts:
-
-**Core:** `users`, `teams`, `players`, `fixtures`
-
-**Fantasy:** `leagues`, `league_members`, `team_players`, `matchdays`, `player_points`, `lineups`, `lineup_players`
-
-**Market:** `market_listings`, `bids`
-
-See `backend/db/migrations/` for the full schema with constraints, indexes, and triggers.
-
----
-
-## Team
-
-Built by the ISW2 team at Universidad de Leon.
-
-## License
-
-This project is for educational purposes as part of the Software Engineering II course.
+Built by the **ISW2 Group 9 at Universidad de León** as part of the Software Engineering II course. For educational purposes.
