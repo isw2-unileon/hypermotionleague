@@ -123,6 +123,12 @@
         </div>
       </template>
     </div>
+    <Toast
+      :visible="showCreatedToast"
+      message="¡Liga creada! Se te han asignado 15 jugadores. Mira tu plantilla en Mi Equipo."
+      variant="success"
+      @close="showCreatedToast = false"
+    />
   </AppShell>
 </template>
 
@@ -131,6 +137,7 @@ import { ref, computed, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import AppShell from "@/design-system/AppShell.vue";
 import Avatar from "@/design-system/primitives/Avatar.vue";
+import Toast from "@/design-system/Toast.vue";
 import { currentUserId } from "@/lib/auth";
 import api from "@/lib/api";
 
@@ -158,6 +165,10 @@ interface Member {
 
 const route = useRoute();
 const router = useRouter();
+
+
+const showCreatedToast = ref(false);
+
 
 const league = ref<League | null>(null);
 const members = ref<Member[]>([]);
@@ -248,6 +259,14 @@ onMounted(async () => {
     error.value = e instanceof Error ? e.message : "Error al cargar la liga";
   } finally {
     loading.value = false;
+  }
+
+  if (route.query.created === "1") {
+    showCreatedToast.value = true;
+    router.replace({ query: {} });
+    setTimeout(() => {
+      showCreatedToast.value = false;
+    }, 6000);
   }
 });
 </script>
