@@ -1,0 +1,27 @@
+{
+  "get": "fixtures",
+  "parameters": { "league": "141", "season": "2025", "round": "Regular Season - 30" },
+  "errors": [],
+  "results": 2,
+  "paging": { "current": 1, "total": 1 },
+  "response": [
+    {
+      "fixture": { "id": 5001, "date": "2026-04-05T16:00:00+00:00", "status": { "short": "FT" } },
+      "league": { "id": 141, "season": 2025, "round": "Regular Season - 30" },
+      "teams": {
+        "home": { "id": 9001, "name": "Atlético Fictional", "winner": true },
+        "away": { "id": 9002, "name": "Real Imaginary", "winner": false }
+      },
+      "goals": { "home": 2, "away": 0 }
+    },
+    {
+      "fixture": { "id": 5002, "date": "2026-04-05T18:30:00+00:00", "status": { "short": "FT" } },
+      "league": { "id": 141, "season": 2025, "round": "Regular Season - 30" },
+      "teams": {
+        "home": { "id": 9003, "name": "Deportivo Placeholder", "winner": null },
+        "away": { "id": 9004, "name": "Unión Sample", "winner": null }
+      },
+      "goals": { "home": 0, "away": 0 }
+    }
+  ]
+}
