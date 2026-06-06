@@ -1,22 +1,7 @@
-<!--
-  SPRINT 2 WIRING — DEV 3
-  =======================
-  This page is a STATIC SHELL. To wire it:
-  1. [DONE] Fetch current lineup:
-       GET /api/v1/leagues/:id/matchdays/:number/lineup
-  2. Save lineup:
-       PUT /api/v1/leagues/:id/lineups/me  with body
-       { players: [{ playerId, positionSlot, isStarter }] }
-       The backend uses ReplaceLineupPlayers (Sprint 1.6 task 3.1)
-       so saves are atomic and stale players are dropped.
-  3. [DONE] Deadline: live countdown wired to currentMatchday.start_date via setInterval
-  4. [DONE] Substitution modal: selectBenchPlayer swaps slots and sets hasEdits;
-       saveLineup calls PUT /api/v1/leagues/:id/matchdays/:number/lineup atomically.
--->
 <template>
   <AppShell>
     <div class="equipo-page">
-<!-- ── Header ── -->
+<!-- Header -->
       <div class="equipo-header">
         <div>
           <span class="meta-strip">
@@ -30,7 +15,7 @@
         <span class="tag tag-lime tnum">CIERRA EN {{ countdown }}</span>
       </div>
 
-      <!-- ── League selector ── -->
+      <!-- League selector -->
       <div class="league-select-wrap">
         <select v-model="selectedLeagueId" @change="onLeagueChange" class="input">
           <option disabled value="">Selecciona una liga</option>
@@ -40,7 +25,7 @@
         </select>
       </div>
 
-      <!-- ── Formation chips ── -->
+      <!-- Formation chips  -->
       <div class="formation-chips">
         <button
           v-for="f in formationKeys"
@@ -53,7 +38,7 @@
         </button>
       </div>
 
-      <!-- ── States ── -->
+      <!--  States  -->
       <div v-if="loading" class="state-msg mono">Cargando equipo…</div>
       <div v-else-if="error" class="state-msg state-error">{{ error }}</div>
       <div v-else-if="!selectedLeagueId" class="state-msg mono">
@@ -63,7 +48,7 @@
         Tu plantilla está vacía — ve al mercado
       </div>
 
-      <!-- ── Pitch ── -->
+      <!-- Pitch -->
       <div v-else-if="squadPlayers.length > 0" class="pitch-wrap">
         <div class="pitch-container">
           <PitchSVG />
@@ -163,7 +148,7 @@
           </div>
         </div>
 
-        <!-- ── Save bar ── -->
+        <!-- Save bar  -->
         <div class="save-bar">
           <button
             class="btn btn-primary save-btn"
@@ -176,7 +161,7 @@
         </div>
       </div>
 
-      <!-- ── Substitution modal (stub) ── -->
+      <!--Substitution modal (stub) -->
       <Teleport to="body">
         <div
           v-if="subModal.open"
@@ -233,7 +218,7 @@ import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
 import AppShell from '@/design-system/AppShell.vue';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// Types
 
 type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
 
@@ -294,7 +279,7 @@ interface UserTeam {
   total_value: number;
 }
 
-// ── Formations ─────────────────────────────────────────────────────────────
+// Formations
 
 const FORMATIONS: Record<string, { gk: number; def: number; mid: number; fwd: number }> = {
   '4-4-2': { gk: 1, def: 4, mid: 4, fwd: 2 },
@@ -305,7 +290,7 @@ const FORMATIONS: Record<string, { gk: number; def: number; mid: number; fwd: nu
 };
 const formationKeys = Object.keys(FORMATIONS);
 
-// ── State ──────────────────────────────────────────────────────────────────
+// State
 
 const leagues = ref<League[]>([]);
 const selectedLeagueId = ref<number | ''>('');
@@ -328,7 +313,7 @@ const subModal = reactive<{
   current: LineupPlayer | null;
 }>({ open: false, position: 'FWD', index: 0, current: null });
 
-// ── Derived ────────────────────────────────────────────────────────────────
+// Derived
 
 const selectedLeagueName = computed(
   () => leagues.value.find(l => l.id === selectedLeagueId.value)?.name ?? '',
@@ -348,7 +333,7 @@ const slottedPlayers = computed(() => {
   };
 });
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// Helpers
 
 function shortTeam(name: string): string {
   return name.slice(0, 3).toUpperCase();
@@ -392,7 +377,7 @@ function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
     }));
 }
 
-// ── Countdown ──────────────────────────────────────────────────────────────
+// Countdown
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return '00:00:00';
@@ -420,7 +405,7 @@ watch(currentMatchday, () => startCountdown());
 
 onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
 
-// ── Actions ────────────────────────────────────────────────────────────────
+// Actions
 
 function selectFormation(f: string) {
   formation.value = f;
@@ -508,7 +493,7 @@ async function onLeagueChange() {
 
     // 2. Fetch squad (needed for bench when building a lineup from scratch)
     const teamData = await api.get<UserTeam>(`/api/v1/leagues/${leagueId}/team`);
-    squadPlayers.value = teamData.players;
+    squadPlayers.value = teamData.players ?? [];
 
     // 3. Try to fetch existing lineup for current matchday (may not exist yet — 404 is OK)
     if (currentMatchday.value) {
@@ -549,7 +534,7 @@ onMounted(async () => {
   color: var(--ink-100);
 }
 
-/* ── Header ── */
+/*Header */
 .equipo-header {
   display: flex;
   justify-content: space-between;
