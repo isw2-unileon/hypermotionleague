@@ -68,6 +68,9 @@ func (m *mockTeamRepo) HasPlayer(_ context.Context, _, _, _ int64) (bool, error)
 func (m *mockTeamRepo) TransferPlayer(_ context.Context, _, _, _, _ int64, _ int) error {
 	return nil
 }
+func (m *mockTeamRepo) DraftInitialSquad(_ context.Context, _, _ int64) error {
+	return nil
+}
 
 // ── test helpers ─────────────────────────────────────────────────────────────
 
