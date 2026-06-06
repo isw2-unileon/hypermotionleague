@@ -23,6 +23,7 @@ type Config struct {
 	JWTSecret        string
 	SupabaseURL      string
 	SupabaseKey      string
+	APIFootballKey   string // API-Football (v3) key, used by the sync-players command
 	DB               DBConfig
 }
 
@@ -66,6 +67,9 @@ func Load() (*Config, error) {
 		JWTSecret:        getEnv("JWT_SECRET", ""),
 		SupabaseURL:      getEnv("SUPABASE_URL", ""),
 		SupabaseKey:      getEnv("SUPABASE_SERVICE_KEY", ""),
+		// Optional: only the sync-players command needs it, so we do not
+		// fail-fast here when it is unset (unlike JWT_SECRET below).
+		APIFootballKey: getEnv("API_FOOTBALL_KEY", ""),
 
 		DB: DBConfig{
 			DSN:      os.Getenv("DATABASE_URL"),

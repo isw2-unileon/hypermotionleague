@@ -27,12 +27,13 @@ function newUser(label: string): TestUser {
 
 async function registerUser(page: Page, user: TestUser): Promise<void> {
   await page.goto("/auth");
-  await page.getByRole("button", { name: "Registrarse" }).click();
+  // The register/login toggle uses role="tab", not button.
+  await page.getByRole("tab", { name: "Registrarse" }).click();
   await page.getByPlaceholder("tu_nombre").fill(user.username);
-  await page.getByPlaceholder("Nombre que verán los demás").fill(user.displayName);
+  await page.getByPlaceholder("Como quieres que te vean").fill(user.displayName);
   await page.getByPlaceholder("tu@email.com").fill(user.email);
   await page.getByPlaceholder("Mínimo 8 caracteres").fill(user.password);
-  await page.getByRole("button", { name: "Fichar como mánager" }).click();
+  await page.getByRole("button", { name: "Crear cuenta" }).click();
   await expect(page).toHaveURL(/\/leagues$/);
 }
 
@@ -58,17 +59,18 @@ test("league lifecycle: A creates, B joins, both see each other", async ({ brows
   await pageA.getByPlaceholder("Liga de amigos").fill(leagueName);
   await pageA.getByRole("button", { name: "Crear liga" }).click();
   await expect(pageA).toHaveURL(/\/leagues\/\d+$/);
-  // The invite code is rendered inside the only <code> element on the page.
-  const inviteCode = (await pageA.locator("code").first().innerText()).trim();
+  // The invite code is rendered in a read-only <input id="invite-code">, so
+  // read it with inputValue(), not innerText().
+  const inviteCode = (await pageA.locator("#invite-code").inputValue()).trim();
   expect(inviteCode).not.toEqual("");
 
   // Step 3: register user B in a fresh context.
   await registerUser(pageB, userB);
 
-  // Step 4: user B joins via the invite code.
+  // Step 4: user B joins via the invite code from the /leagues page.
   await pageB.goto("/leagues");
-  await pageB.getByPlaceholder("Código de invitación").fill(inviteCode);
-  await pageB.getByRole("button", { name: "Unirse" }).click();
+  await pageB.getByPlaceholder("HML-CÓDIGO").fill(inviteCode);
+  await pageB.getByRole("button", { name: "Unirse", exact: true }).click();
   await expect(pageB).toHaveURL(/\/leagues\/\d+$/);
 
   // Step 5: user A saves a 4-4-2 lineup.
@@ -95,10 +97,12 @@ test("league lifecycle: A creates, B joins, both see each other", async ({ brows
   for (const page of [pageA, pageB]) {
     // Navigate via /leagues so each user picks their own league id.
     await page.goto("/leagues");
-    await page.getByRole("link", { name: new RegExp(leagueName) }).click();
+    // League cards are <div role="button">, not links.
+    await page.getByRole("button", { name: new RegExp(leagueName) }).click();
     await expect(page).toHaveURL(/\/leagues\/\d+$/);
 
-    const memberList = page.locator("h2", { hasText: "Miembros" }).locator("..");
+    // Members render inside .members; each name is in .member-name.
+    const memberList = page.locator(".members");
     await expect(memberList).toContainText(userA.displayName);
     await expect(memberList).toContainText(userB.displayName);
   }

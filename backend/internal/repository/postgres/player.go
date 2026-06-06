@@ -34,6 +34,41 @@ func (r *PlayerRepo) Create(ctx context.Context, player *models.Player) error {
 	).Scan(&player.ID, &player.CreatedAt, &player.UpdatedAt)
 }
 
+// UpsertByExternalID inserts a player or updates it on external_id conflict,
+// keyed on the API-Football player.id. Used by the sync-players command for
+// idempotent loads.
+//
+// market_value and is_active are intentionally omitted: they are fantasy
+// game-state with no API source, so insert leaves them at their column defaults
+// and a conflicting update does not clobber them. The nullable team_id,
+// jersey_number and age write SQL NULL when their pointers are nil.
+func (r *PlayerRepo) UpsertByExternalID(ctx context.Context, player *models.Player) error {
+	query := `
+		INSERT INTO players (external_id, first_name, last_name, position, team_name,
+		                     team_id, jersey_number, photo_url, age)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (external_id) DO UPDATE SET
+			first_name = EXCLUDED.first_name,
+			last_name = EXCLUDED.last_name,
+			position = EXCLUDED.position,
+			team_name = EXCLUDED.team_name,
+			team_id = EXCLUDED.team_id,
+			jersey_number = EXCLUDED.jersey_number,
+			photo_url = EXCLUDED.photo_url,
+			age = EXCLUDED.age,
+			updated_at = NOW()
+		RETURNING id, created_at, updated_at`
+
+	err := r.pool.QueryRow(ctx, query,
+		player.ExternalID, player.FirstName, player.LastName, player.Position, player.TeamName,
+		player.TeamID, player.JerseyNumber, player.PhotoURL, player.Age,
+	).Scan(&player.ID, &player.CreatedAt, &player.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("upsert player by external id %d: %w", player.ExternalID, err)
+	}
+	return nil
+}
+
 // GetByID retrieves a player by ID.
 func (r *PlayerRepo) GetByID(ctx context.Context, id int64) (*models.Player, error) {
 	query := `
