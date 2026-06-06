@@ -20,11 +20,7 @@
 
       <div class="spacer" />
 
-      <div class="countdown card">
-        <div class="countdown-label mono">PRÓXIMO CIERRE</div>
-        <div class="countdown-time display tnum">04:18:42</div>
-        <div class="countdown-sub">Mercado cierra hoy</div>
-      </div>
+      <MarketCountdown :label="label" :time-text="timeText" :subtitle="subtitle" />
 
       <button type="button" class="btn btn-ghost logout-btn" @click="onLogout">
         <svg
@@ -77,6 +73,10 @@ import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
+import MarketCountdown from "./MarketCountDown.vue";
+import { useMarketCountdown } from "@/composables/useMarketCountdown";
+
+
 
 type NavId = "ligas" | "clasif" | "equipo" | "mercado";
 
@@ -89,6 +89,27 @@ interface NavItem {
 
 const route = useRoute();
 const router = useRouter();
+
+// Selected league: For now, we retrieve it from the URL. If the URL contains 
+// /leagues/:id, /squad/:leagueId/:userId, or ?league=ID, we use that ID.
+// If there is no clear league, the countdown is not displayed.
+const selectedLeagueId = computed<number | null>(() => {
+  const params = route.params as Record<string, string | undefined>;
+  const fromParams = params.leagueId ?? params.id;
+  if (fromParams != null) {
+    const n = Number(fromParams);
+    if (!Number.isNaN(n)) return n;
+  }
+  const query = route.query.league;
+  const raw = Array.isArray(query) ? query[0] : query;
+  if (raw != null) {
+    const n = Number(raw);
+    if (!Number.isNaN(n)) return n;
+  }
+  return null;
+});
+
+const { timeText, label, subtitle } = useMarketCountdown(() => selectedLeagueId.value);
 
 const navItems: readonly NavItem[] = [
   { id: "ligas", label: "Mis Ligas", icon: "trophy", route: "/leagues" },
@@ -203,28 +224,6 @@ function onLogout(): void {
   flex: 1;
 }
 
-.countdown {
-  padding: 14px;
-  background: var(--ink-800);
-}
-
-.countdown-label {
-  font-size: 9px;
-  color: var(--ink-400);
-  letter-spacing: 0.15em;
-}
-
-.countdown-time {
-  font-size: 26px;
-  margin-top: 4px;
-  color: var(--lime);
-}
-
-.countdown-sub {
-  font-size: 11px;
-  color: var(--ink-300);
-  margin-top: 2px;
-}
 
 /* Logout — reuses the .btn / .btn-ghost tokens; only layout/colour set here.
    Full width at the bottom of the sidebar, aligned with the nav items. */
