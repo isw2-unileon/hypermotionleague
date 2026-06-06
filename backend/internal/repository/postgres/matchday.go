@@ -242,6 +242,54 @@ func (r *MatchdayRepo) UpdateLineupPoints(ctx context.Context, lineupID int64, t
 	return err
 }
 
+// PropagateMatchdayPoints pushes the computed player_points for a matchday into
+// every lineup of that matchday, then recomputes each lineup's total. It is the
+// bridge between what the ingest pipeline writes (player_points.points) and what
+// GetStandings reads: lineup_players.points (per-matchday standings) and
+// lineups.total_points (overall standings).
+//
+// Both updates run in one transaction. It is idempotent: each run recomputes
+// from player_points, and a lineup player with no points row for the matchday is
+// reset to 0 (LEFT JOIN + COALESCE), so re-running after a correction never
+// leaves stale points behind. Returns the number of lineups recomputed.
+func (r *MatchdayRepo) PropagateMatchdayPoints(ctx context.Context, matchdayID int64) (int, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 1. Set each lineup player's points from player_points for this matchday.
+	//    The LEFT JOIN + COALESCE resets players with no points row to 0.
+	if _, err := tx.Exec(ctx, `
+		UPDATE lineup_players lp
+		SET points = COALESCE(pp.points, 0)
+		FROM lineups l
+		LEFT JOIN player_points pp
+		       ON pp.player_id = lp.player_id AND pp.matchday_id = l.matchday_id
+		WHERE lp.lineup_id = l.id AND l.matchday_id = $1
+	`, matchdayID); err != nil {
+		return 0, fmt.Errorf("propagate lineup_players.points: %w", err)
+	}
+
+	// 2. Recompute each lineup's total from its (now updated) players.
+	tag, err := tx.Exec(ctx, `
+		UPDATE lineups
+		SET total_points = COALESCE((
+			SELECT SUM(lp.points) FROM lineup_players lp WHERE lp.lineup_id = lineups.id
+		), 0)
+		WHERE matchday_id = $1
+	`, matchdayID)
+	if err != nil {
+		return 0, fmt.Errorf("recompute lineups.total_points: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit propagation: %w", err)
+	}
+	return int(tag.RowsAffected()), nil
+}
+
 // GetStandings retrieves the standings for a league, optionally filtered by matchday.
 func (r *MatchdayRepo) GetStandings(ctx context.Context, leagueID int64, matchdayID *int64) (*models.Standings, error) {
 	standings := &models.Standings{LeagueID: leagueID, MatchdayID: matchdayID}
