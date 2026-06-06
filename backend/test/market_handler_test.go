@@ -10,7 +10,7 @@ import (
 // ── Auth guard tests ─────────────────────────────────────────────────────────
 
 func TestGetAvailablePlayers_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.GET("/leagues/:id/market/players", h.GetAvailablePlayers)
 
@@ -20,7 +20,7 @@ func TestGetAvailablePlayers_NoAuth(t *testing.T) {
 }
 
 func TestGetActiveListings_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.GET("/leagues/:id/market/listings", h.GetActiveListings)
 
@@ -29,7 +29,7 @@ func TestGetActiveListings_NoAuth(t *testing.T) {
 }
 
 func TestPlaceBid_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.POST("/leagues/:id/market/bids", h.PlaceBid)
 
@@ -38,7 +38,7 @@ func TestPlaceBid_NoAuth(t *testing.T) {
 }
 
 func TestGetUserBids_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.GET("/leagues/:id/market/bids", h.GetUserBids)
 
@@ -47,7 +47,7 @@ func TestGetUserBids_NoAuth(t *testing.T) {
 }
 
 func TestCancelBid_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.DELETE("/leagues/:id/market/bids/:bid_id", h.CancelBid)
 
@@ -56,7 +56,7 @@ func TestCancelBid_NoAuth(t *testing.T) {
 }
 
 func TestGetMarketStatus_NoAuth(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.GET("/leagues/:id/market/status", h.GetMarketStatus)
 
@@ -67,7 +67,7 @@ func TestGetMarketStatus_NoAuth(t *testing.T) {
 // ── Invalid league ID tests ──────────────────────────────────────────────────
 
 func TestGetAvailablePlayers_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.GET("/leagues/:id/market/players", h.GetAvailablePlayers)
 
@@ -77,7 +77,7 @@ func TestGetAvailablePlayers_InvalidLeagueID(t *testing.T) {
 }
 
 func TestGetActiveListings_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.GET("/leagues/:id/market/listings", h.GetActiveListings)
 
@@ -86,7 +86,7 @@ func TestGetActiveListings_InvalidLeagueID(t *testing.T) {
 }
 
 func TestPlaceBid_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.POST("/leagues/:id/market/bids", h.PlaceBid)
 
@@ -95,7 +95,7 @@ func TestPlaceBid_InvalidLeagueID(t *testing.T) {
 }
 
 func TestCancelBid_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.DELETE("/leagues/:id/market/bids/:bid_id", h.CancelBid)
 
@@ -104,7 +104,7 @@ func TestCancelBid_InvalidLeagueID(t *testing.T) {
 }
 
 func TestCancelBid_InvalidBidID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.DELETE("/leagues/:id/market/bids/:bid_id", h.CancelBid)
 
@@ -113,7 +113,7 @@ func TestCancelBid_InvalidBidID(t *testing.T) {
 }
 
 func TestGetMarketStatus_InvalidLeagueID(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(1)
 	r.GET("/leagues/:id/market/status", h.GetMarketStatus)
 
@@ -124,7 +124,7 @@ func TestGetMarketStatus_InvalidLeagueID(t *testing.T) {
 // ── PlaceBid: auth guard fires before body parse ─────────────────────────────
 
 func TestPlaceBid_BadBody_ButNoAuthFirst(t *testing.T) {
-	h := handlers.NewMarketHandler(nil, nil, nil, nil)
+	h := handlers.NewMarketHandler(nil, nil, nil, nil, nil)
 	r := newRouter(0)
 	r.POST("/leagues/:id/market/bids", h.PlaceBid)
 
