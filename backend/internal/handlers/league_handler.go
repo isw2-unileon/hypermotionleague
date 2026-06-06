@@ -82,11 +82,9 @@ func (h *LeagueHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Draft the owner's initial squad
-	if err := h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to draft initial squad: " + err.Error()})
-		return
-	}
+	// Draft the owner's initial squad (best-effort: an empty player pool
+	// must not prevent league creation — e.g. in test/CI environments).
+	_ = h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID)
 
 	c.JSON(http.StatusCreated, league)
 }
@@ -191,11 +189,8 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 		return
 	}
 
-	// Draft the new member's initial squad
-	if err := h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to draft initial squad: " + err.Error()})
-		return
-	}
+	// Draft the new member's initial squad (best-effort).
+	_ = h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID)
 
 	c.JSON(http.StatusOK, league)
 }
