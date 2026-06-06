@@ -166,3 +166,156 @@ func (r *TeamRepo) TransferPlayer(ctx context.Context, leagueID, oldUserID, newU
 
 	return tx.Commit(ctx)
 }
+
+// PayReleaseTx pays the release clause to buy a player from another user.
+// Transactional with FOR UPDATE to prevent concurrent purchases and validate budget.
+// Release clause = player's market_value (simplest rule for MVP).
+func (r *TeamRepo) PayReleaseTx(ctx context.Context, leagueID, buyerID, sellerID, playerID int64) (clauseAmount int, err error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 1. Lock buyer's member row to serialize concurrent purchases
+	var buyerBudget int
+	err = tx.QueryRow(ctx, `
+		SELECT budget FROM league_members
+		WHERE league_id = $1 AND user_id = $2
+		FOR UPDATE
+	`, leagueID, buyerID).Scan(&buyerBudget)
+	if err != nil {
+		return 0, fmt.Errorf("lock buyer row: %w", err)
+	}
+
+	// 2. Verify the player belongs to the seller in this league
+	var tpID int64
+	err = tx.QueryRow(ctx, `
+		SELECT tp.id FROM team_players tp
+		WHERE tp.league_id = $1 AND tp.user_id = $2 AND tp.player_id = $3
+		FOR UPDATE
+	`, leagueID, sellerID, playerID).Scan(&tpID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, errors.New("PLAYER_NOT_OWNED")
+		}
+		return 0, fmt.Errorf("lock player row: %w", err)
+	}
+
+	// 3. Get the player's market value as the release clause
+	var marketValue int
+	err = tx.QueryRow(ctx, `
+		SELECT market_value FROM players WHERE id = $1
+	`, playerID).Scan(&marketValue)
+	if err != nil {
+		return 0, fmt.Errorf("get player market value: %w", err)
+	}
+	clauseAmount = marketValue
+
+	// 4. Validate buyer has enough budget
+	if buyerBudget < clauseAmount {
+		return 0, errors.New("INSUFFICIENT_BUDGET")
+	}
+
+	// 5. Transfer: remove from seller, add to buyer
+	if _, err = tx.Exec(ctx, `
+		DELETE FROM team_players WHERE league_id = $1 AND user_id = $2 AND player_id = $3
+	`, leagueID, sellerID, playerID); err != nil {
+		return 0, fmt.Errorf("remove from seller: %w", err)
+	}
+
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO team_players (league_id, user_id, player_id, purchase_price) VALUES ($1, $2, $3, $4)
+	`, leagueID, buyerID, playerID, clauseAmount); err != nil {
+		return 0, fmt.Errorf("add to buyer: %w", err)
+	}
+
+	// 6. Update budgets: deduct from buyer, credit seller
+	if _, err = tx.Exec(ctx, `
+		UPDATE league_members SET budget = budget - $1 WHERE league_id = $2 AND user_id = $3
+	`, clauseAmount, leagueID, buyerID); err != nil {
+		return 0, fmt.Errorf("deduct buyer budget: %w", err)
+	}
+
+	if _, err = tx.Exec(ctx, `
+		UPDATE league_members SET budget = budget + $1 WHERE league_id = $2 AND user_id = $3
+	`, clauseAmount, leagueID, sellerID); err != nil {
+		return 0, fmt.Errorf("credit seller budget: %w", err)
+	}
+
+	return clauseAmount, tx.Commit(ctx)
+}
+
+// draftQuota describes how many players of a position make up an initial squad.
+type draftQuota struct {
+	position models.PlayerPosition
+	count    int
+}
+
+// initialSquadQuotas defines the fixed shape of an initial draft squad:
+// 2 GK, 5 DEF, 5 MID, 3 FWD "15 players"
+var initialSquadQuotas = []draftQuota{
+	{models.PositionGK, 2},
+	{models.PositionDEF, 5},
+	{models.PositionMID, 5},
+	{models.PositionFWD, 3},
+}
+
+// DraftInitialSquad assigns a random starting squad of 15 players (2 GK, 5 DEF,
+// 5 MID, 3 FWD) to a user in a league.
+func (r *TeamRepo) DraftInitialSquad(ctx context.Context, leagueID, userID int64) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for _, q := range initialSquadQuotas {
+		rows, err := tx.Query(ctx,
+			`SELECT id FROM players
+			 WHERE is_active = TRUE
+			   AND position = $1
+			   AND id NOT IN (SELECT player_id FROM team_players WHERE league_id = $2)
+			 ORDER BY RANDOM()
+			 LIMIT $3`,
+			q.position, leagueID, q.count,
+		)
+		if err != nil {
+			return fmt.Errorf("select available %s: %w", q.position, err)
+		}
+
+		playerIDs := make([]int64, 0, q.count)
+		for rows.Next() {
+			var id int64
+			if err := rows.Scan(&id); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan available %s: %w", q.position, err)
+			}
+			playerIDs = append(playerIDs, id)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("iterate available %s: %w", q.position, err)
+		}
+
+		if len(playerIDs) < q.count {
+			return fmt.Errorf("not enough available %s in this league: need %d, found %d",
+				q.position, q.count, len(playerIDs))
+		}
+
+		for _, playerID := range playerIDs {
+			if _, err := tx.Exec(ctx,
+				`INSERT INTO team_players (league_id, user_id, player_id, purchase_price)
+				 VALUES ($1, $2, $3, 0)`,
+				leagueID, userID, playerID,
+			); err != nil {
+				return fmt.Errorf("assign %s player %d: %w", q.position, playerID, err)
+			}
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit draft: %w", err)
+	}
+	return nil
+}

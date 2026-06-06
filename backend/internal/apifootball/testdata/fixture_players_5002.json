@@ -1,0 +1,39 @@
+{
+  "get": "fixtures/players",
+  "parameters": { "fixture": "5002" },
+  "errors": [],
+  "results": 2,
+  "response": [
+    {
+      "team": { "id": 9003, "name": "Deportivo Placeholder" },
+      "players": [
+        {
+          "player": { "id": 70005, "name": "Bench Sample" },
+          "statistics": [
+            {
+              "games": { "minutes": 30, "position": "M" }
+            }
+          ]
+        },
+        {
+          "player": { "id": 70006, "name": "Starter Placeholder" },
+          "statistics": [
+            {
+              "games": { "minutes": 90, "position": "D" },
+              "goals": { "total": null, "conceded": 0, "assists": null, "saves": null }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "team": { "id": 9004, "name": "Unión Sample" },
+      "players": [
+        {
+          "player": { "id": 70007, "name": "Unused Sub" },
+          "statistics": []
+        }
+      ]
+    }
+  ]
+}

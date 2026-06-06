@@ -58,7 +58,7 @@ type PlaceBidRequest struct {
 
 // ActivityEvent represents a single recent market event in a league feed.
 type ActivityEvent struct {
-	EventType  string    `json:"event_type"`  // "transfer" | "listing"
+	EventType  string    `json:"event_type"` // "transfer" | "listing"
 	OccurredAt time.Time `json:"occurred_at"`
 	Actor      string    `json:"actor"`
 	PlayerName string    `json:"player_name"`
@@ -66,10 +66,17 @@ type ActivityEvent struct {
 }
 
 // MarketStatus represents the current state of a league market.
+//
+// IsOpen / NextChangeAt / Reason describe the trading window (see package
+// market): is_open requires both the 19:00–00:00 Europe/Madrid window and no
+// matchday in play. NextChangeAt is the absolute instant of the next open<->
+// closed flip (the frontend renders the countdown from it). Reason is one of
+// "open" | "outside_window" | "active_matchday".
 type MarketStatus struct {
 	LeagueID       int64     `json:"league_id"`
 	IsOpen         bool      `json:"is_open"`
-	ClosesAt       time.Time `json:"closes_at"`
+	NextChangeAt   time.Time `json:"next_change_at"`
+	Reason         string    `json:"reason"`
 	ActiveListings int       `json:"active_listings"`
 	YourActiveBids int       `json:"your_active_bids"`
 	MaxBidsPerUser int       `json:"max_bids_per_user"`

@@ -57,6 +57,15 @@
         <span class="display tnum banner-value">{{ nextCloseLabel }}</span>
       </div>
 
+      <!-- market closed banner -->
+      <div v-if="!loading && !marketOpen && leagueId != null" class="closed-banner card">
+        <span class="closed-icon">🔒</span>
+        <div>
+          <div class="mono closed-label">MERCADO CERRADO</div>
+          <div class="mono closed-sub">No se pueden realizar pujas en este momento.</div>
+        </div>
+      </div>
+
       <!-- position filters (mercado tab) -->
       <div v-if="activeTab === 'mercado'" class="filters">
         <button
@@ -202,6 +211,7 @@ import {
   type LeagueSummary,
   type Matchday,
   type MarketListingWithDetails,
+  type MarketStatus,
   type PlayerPosition,
   MAX_ACTIVE_BIDS,
   formatCountdown,
@@ -224,6 +234,9 @@ const jornada = ref<number | null>(null);
 const balance = ref(0);
 const listings = ref<MarketListingWithDetails[]>([]);
 const bids = ref<BidWithDetails[]>([]);
+
+const marketStatus = ref<MarketStatus | null>(null);
+const marketOpen = computed(() => marketStatus.value?.is_open ?? true);
 
 const loading = ref(true);
 const error = ref("");
@@ -281,10 +294,13 @@ const filteredListings = computed(() => {
 const mercadoCount = computed(() => listings.value.length);
 const activeBidCount = computed(() => bids.value.length);
 
-// Banner countdown = the soonest-closing active listing. The market /status
-// endpoint's closes_at is never populated by the backend (Phase 0 #5), so we
-// derive the market-level countdown from the real per-listing expires_at values.
+// Banner countdown: use the real closes_at from market status endpoint.
+// Falls back to the soonest-closing listing if status is unavailable.
 const nextCloseMs = computed(() => {
+  if (marketStatus.value?.closes_at) {
+    const ms = msUntil(marketStatus.value.closes_at, now.value);
+    if (ms > 0) return ms;
+  }
   let best = Number.POSITIVE_INFINITY;
   for (const l of listings.value) {
     const ms = msUntil(l.expires_at, now.value);
@@ -345,16 +361,18 @@ function resolveLeagueId(): number | null {
 }
 
 async function loadMarket(id: number): Promise<void> {
-  const [leagueData, members, listingsEnv, bidsEnv] = await Promise.all([
+  const [leagueData, members, listingsEnv, bidsEnv, statusEnv] = await Promise.all([
     api.get<LeagueSummary>(`/api/v1/leagues/${id}`),
     api.get<LeagueMember[]>(`/api/v1/leagues/${id}/members`),
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   league.value = leagueData;
   balance.value = members.find((m) => m.user_id === myUserId)?.budget ?? 0;
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
+  marketStatus.value = statusEnv.data ?? null;
 
   // jornada is best-effort: leagues without a current matchday return 404.
   try {
@@ -368,20 +386,22 @@ async function loadMarket(id: number): Promise<void> {
 async function refresh(): Promise<void> {
   if (leagueId.value == null) return;
   const id = leagueId.value;
-  const [listingsEnv, bidsEnv] = await Promise.all([
+  const [listingsEnv, bidsEnv, statusEnv] = await Promise.all([
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
+  marketStatus.value = statusEnv.data ?? null;
 }
 
 // ── actions ──────────────────────────────────────────────────────────────────
 
 function openBid(listing: MarketListingWithDetails): void {
+  if (!marketOpen.value) return; // market is closed — ignore bid attempts
   // If the user already holds an active bid on this listing, open in raise mode
-  // (cancel-then-place) instead of stacking a duplicate bid — the backend has no
-  // unique (listing,user) constraint, so a second bid would double-commit budget.
+  // (cancel-then-place) instead of stacking a duplicate bid.
   const existing = myBidByListing.value.get(listing.id);
   modalReplaceBidId.value = existing ? existing.id : null;
   modalListing.value = listing;
@@ -626,6 +646,33 @@ onUnmounted(() => {
   font-size: 18px;
   color: var(--lime);
   margin-left: auto;
+}
+
+/* market closed banner */
+.closed-banner {
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  border-color: var(--down);
+  background: rgba(255, 98, 98, 0.06);
+}
+.closed-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.closed-label {
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--down);
+  font-weight: 600;
+}
+.closed-sub {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-300);
+  margin-top: 2px;
 }
 
 /* filters */

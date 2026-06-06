@@ -42,16 +42,22 @@ func (p Player) FullName() string {
 
 // PlayerPoints represents a player's stats and points for a matchday.
 type PlayerPoints struct {
-	ID            int64     `json:"id"`
-	PlayerID      int64     `json:"player_id"`
-	MatchdayID    int64     `json:"matchday_id"`
-	Points        int       `json:"points"`
-	Goals         int       `json:"goals"`
-	Assists       int       `json:"assists"`
-	MinutesPlayed int       `json:"minutes_played"`
-	YellowCards   int       `json:"yellow_cards"`
-	RedCards      int       `json:"red_cards"`
-	CleanSheet    bool      `json:"clean_sheet"`
+	ID            int64 `json:"id"`
+	PlayerID      int64 `json:"player_id"`
+	MatchdayID    int64 `json:"matchday_id"`
+	Points        int   `json:"points"`
+	Goals         int   `json:"goals"`
+	Assists       int   `json:"assists"`
+	MinutesPlayed int   `json:"minutes_played"`
+	YellowCards   int   `json:"yellow_cards"`
+	RedCards      int   `json:"red_cards"`
+	CleanSheet    bool  `json:"clean_sheet"`
+	// Stat columns added in migration 004_extend_player_points_stats, written by
+	// the ingest pipeline so the scoring inputs persist alongside the points.
+	GoalsConceded int       `json:"goals_conceded"`
+	PensMissed    int       `json:"pens_missed"`
+	PensSaved     int       `json:"pens_saved"`
+	Saves         int       `json:"saves"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 

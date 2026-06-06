@@ -94,6 +94,7 @@ import StandingsRow from "@/design-system/components/StandingsRow.vue";
 import type { StandingsRow as StandingsRowData } from "@/types/standings";
 import { currentUserId } from "@/lib/auth";
 import api from "@/lib/api";
+import { lastStandingsLeagueId } from "@/lib/standings-memory";
 
 interface League {
   id: number;
@@ -193,11 +194,22 @@ onMounted(async () => {
   const queryLeagueId = Number(route.query.leagueId);
   const queryMatchday = route.query.matchday;
 
-  if (
-    queryLeagueId &&
-    leagues.value.some((l) => l.id === queryLeagueId)
+  // Priority: URL query param → last remembered league → first league of the user.
+  let resolvedId: number | null = null;
+  if (queryLeagueId && leagues.value.some((l) => l.id === queryLeagueId)) {
+    resolvedId = queryLeagueId;
+  } else if (
+    lastStandingsLeagueId.value !== null &&
+    leagues.value.some((l) => l.id === lastStandingsLeagueId.value)
   ) {
-    selectedLeagueId.value = queryLeagueId;
+    resolvedId = lastStandingsLeagueId.value;
+  } else if (leagues.value.length > 0) {
+    resolvedId = leagues.value[0]!.id;
+  }
+
+  if (resolvedId !== null) {
+    selectedLeagueId.value = resolvedId;
+    lastStandingsLeagueId.value = resolvedId;
     await fetchMatchdays();
     if (queryMatchday !== undefined && queryMatchday !== null && queryMatchday !== "") {
       const num = Number(queryMatchday);
@@ -222,6 +234,7 @@ watch([selectedLeagueId, selectedMatchdayNumber], ([leagueId, matchday]) => {
 
 async function onLeagueChange() {
   if (!selectedLeagueId.value) return;
+  lastStandingsLeagueId.value = selectedLeagueId.value as number;
   selectedMatchdayNumber.value = null;
   matchdays.value = [];
   standings.value = null;

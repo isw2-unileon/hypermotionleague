@@ -275,6 +275,12 @@ const joinSuccess = ref("");
 const isMobile = ref(false);
 const joinInputRef = ref<HTMLInputElement | null>(null);
 
+// Real market data for the stats cards
+const userActiveBids = ref(0);
+const maxBidsPerUser = ref(5);
+const marketClosesAt = ref<string | null>(null);
+const marketIsOpen = ref(false);
+
 // TODO Sprint 2: bind to /api/v1/users/me/matchday-points endpoint.
 const matchdayPoints = 87;
 
@@ -323,6 +329,18 @@ const leagueViews = computed<LeagueView[]>(() =>
   })),
 );
 
+const marketCloseLabel = computed(() => {
+  if (!marketClosesAt.value) return marketIsOpen.value ? "Mercado abierto" : "Mercado cerrado";
+  const ms = new Date(marketClosesAt.value).getTime() - Date.now();
+  if (ms <= 0) return "Mercado cerrado";
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `Cierra ${pad(h)}:${pad(m)}:${pad(s)}`;
+});
+
 const stats = computed<StatCard[]>(() => {
   const uid = currentUserId();
 
@@ -356,13 +374,24 @@ const stats = computed<StatCard[]>(() => {
       sub: bestEntry ? `de ${bestEntry.total} mánagers` : "sin datos",
       lime: true,
     },
-    // TODO Sprint 3 (Dev 4 / 4.C): active bids needs the market/bids endpoint.
-    { label: "PUJAS ACTIVAS", value: "3/5", sub: "Cierra 04:18:42", lime: false },
+    { label: "PUJAS ACTIVAS", value: `${userActiveBids.value}/${maxBidsPerUser.value}`, sub: marketCloseLabel.value, lime: false },
   ];
 });
 
 function updateIsMobile(): void {
   isMobile.value = window.innerWidth < 768;
+}
+
+interface MarketStatusResponse {
+  status: string;
+  data: {
+    league_id: number;
+    is_open: boolean;
+    closes_at: string;
+    active_listings: number;
+    your_active_bids: number;
+    max_bids_per_user: number;
+  } | null;
 }
 
 async function fetchLeagues(): Promise<void> {
@@ -389,11 +418,28 @@ async function fetchLeagues(): Promise<void> {
       );
       allEvents.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
       recentActivity.value = allEvents.slice(0, 8).map(mapActivityEvent);
+
+      // Fetch market status from the first league to populate the stats card
+      fetchMarketStatus(leagues.value[0]!.id);
     }
   } catch (e) {
     error.value = e instanceof Error ? e.message : "Error al cargar ligas";
   } finally {
     loading.value = false;
+  }
+}
+
+async function fetchMarketStatus(leagueId: number): Promise<void> {
+  try {
+    const res = await api.get<MarketStatusResponse>(`/api/v1/leagues/${leagueId}/market/status`);
+    if (res.data) {
+      userActiveBids.value = res.data.your_active_bids;
+      maxBidsPerUser.value = res.data.max_bids_per_user;
+      marketClosesAt.value = res.data.closes_at;
+      marketIsOpen.value = res.data.is_open;
+    }
+  } catch {
+    // non-blocking — stats card will show defaults
   }
 }
 

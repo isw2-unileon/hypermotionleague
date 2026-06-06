@@ -43,12 +43,12 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
 	oauthHandler := handlers.NewOAuthHandler(repos.User, cfg.JWTSecret, cfg.SupabaseURL, cfg.SupabaseKey)
-	leagueHandler := handlers.NewLeagueHandler(repos.League)
+	leagueHandler := handlers.NewLeagueHandler(repos.League, repos.Team)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
-	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
+	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League, repos.Team)
 	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
-	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League)
+	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League, repos.Matchday)
 	gin.SetMode(cfg.GinMode)
 
 	r := gin.New()
@@ -107,6 +107,7 @@ func main() {
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
 		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
+		protected.POST("/leagues/:id/users/:userId/team/:playerId/buy", teamHandler.BuyPlayer)
 		// Team
 		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 
