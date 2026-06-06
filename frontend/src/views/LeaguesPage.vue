@@ -170,11 +170,11 @@
             </form>
           </div>
 
-          <!-- Recent activity is mocked pending a Sprint 3 events endpoint. -->
           <div class="card activity-card">
             <div class="meta activity-label mono">● ACTIVIDAD RECIENTE</div>
-            <div class="activity-list">
-              <div v-for="(item, i) in recentActivityMock" :key="i" class="activity-row">
+            <div v-if="recentActivity.length === 0" class="activity-empty mono">Sin movimientos recientes</div>
+            <div v-else class="activity-list">
+              <div v-for="(item, i) in recentActivity" :key="i" class="activity-row">
                 <span>
                   <span class="activity-actor" :style="{ color: item.color }">{{ item.actor }}</span>
                   {{ item.action }}
@@ -197,6 +197,7 @@ import Avatar from "@/design-system/primitives/Avatar.vue";
 import LeagueAvatar from "@/design-system/primitives/LeagueAvatar.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
+import { currentUserId } from "@/lib/auth";
 
 // Backend shape returned by GET /api/v1/leagues (mirrors models.League).
 // UI-only fields are layered on top as a computed view-model (LeagueView),
@@ -232,6 +233,20 @@ interface StatCard {
   lime: boolean;
 }
 
+interface UserStanding {
+  rank: number;
+  user_id: number;
+  username: string;
+  display_name: string;
+  total_points: number;
+}
+
+interface StandingsResponse {
+  league_id: number;
+  matchday_id?: number;
+  rankings: UserStanding[];
+}
+
 interface ActivityItem {
   actor: string;
   action: string;
@@ -239,9 +254,19 @@ interface ActivityItem {
   color: string;
 }
 
+interface ActivityEvent {
+  event_type: "transfer" | "listing";
+  occurred_at: string;
+  actor: string;
+  player_name: string;
+  amount: number;
+}
+
 const router = useRouter();
 
 const leagues = ref<League[]>([]);
+const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
+const recentActivity = ref<ActivityItem[]>([]);
 const loading = ref(true);
 const error = ref("");
 const inviteCode = ref("");
@@ -259,15 +284,24 @@ const marketIsOpen = ref(false);
 // TODO Sprint 2: bind to /api/v1/users/me/matchday-points endpoint.
 const matchdayPoints = 87;
 
+function timeAgo(isoDate: string): string {
+  const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
+  if (diff < 60) return `${diff}s`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function mapActivityEvent(e: ActivityEvent): ActivityItem {
+  if (e.event_type === "transfer") {
+    return { actor: e.actor, action: `fichó a ${e.player_name}`, time: timeAgo(e.occurred_at), color: "var(--lime)" };
+  }
+  return { actor: e.actor, action: `puso a ${e.player_name} en venta`, time: timeAgo(e.occurred_at), color: "var(--pos-fwd)" };
+}
+
 // Accent palette cycled per league so the same league always looks the same.
 const ACCENTS = ["var(--lime)", "var(--pos-fwd)", "var(--pos-def)", "var(--pos-gk)"];
 
-// Recent activity is mocked pending a Sprint 3 events/feed endpoint.
-const recentActivityMock: ActivityItem[] = [
-  { actor: "Lucía R.", action: "pujó por Etta Eyong", time: "2m", color: "var(--lime)" },
-  { actor: "Carlos M.", action: "subió a 1°", time: "12m", color: "var(--pos-fwd)" },
-  { actor: "Andrés P.", action: "vendió Iván Romero", time: "38m", color: "var(--pos-def)" },
-];
 
 // Format budget_per_user (euros) into the compact "100M" label the design uses.
 function formatBudget(amount: number): string {
@@ -307,14 +341,42 @@ const marketCloseLabel = computed(() => {
   return `Cierra ${pad(h)}:${pad(m)}:${pad(s)}`;
 });
 
-const stats = computed<StatCard[]>(() => [
-  { label: "LIGAS ACTIVAS", value: String(leagues.value.length), sub: "en juego", lime: false },
-  // TODO Sprint 3: total points needs a per-user points endpoint.
-  { label: "PUNTOS TOTALES", value: "—", sub: "pendiente", lime: false },
-  // TODO Sprint 3: best position needs a standings call per league.
-  { label: "MEJOR PUESTO", value: "—", sub: "pendiente", lime: true },
-  { label: "PUJAS ACTIVAS", value: `${userActiveBids.value}/${maxBidsPerUser.value}`, sub: marketCloseLabel.value, lime: false },
-]);
+const stats = computed<StatCard[]>(() => {
+  const uid = currentUserId();
+
+  type MyEntry = { rank: number; totalPoints: number; total: number };
+  const myStandings: MyEntry[] = [];
+  for (const l of leagues.value) {
+    const s = standingsMap.value.get(l.id);
+    if (!s) continue;
+    const row = s.rankings.find(r => r.user_id === uid);
+    if (!row) continue;
+    myStandings.push({ rank: row.rank, totalPoints: row.total_points, total: s.rankings.length });
+  }
+
+  const totalPoints = myStandings.reduce((sum, s) => sum + s.totalPoints, 0);
+  const bestEntry = myStandings.reduce<MyEntry | null>(
+    (best, s) => (!best || s.rank < best.rank ? s : best),
+    null,
+  );
+
+  return [
+    { label: "LIGAS ACTIVAS", value: String(leagues.value.length), sub: "en juego", lime: false },
+    {
+      label: "PUNTOS TOTALES",
+      value: myStandings.length > 0 ? totalPoints.toLocaleString("es-ES") : "—",
+      sub: "acumulados",
+      lime: false,
+    },
+    {
+      label: "MEJOR PUESTO",
+      value: bestEntry ? bestEntry.rank.toString().padStart(2, "0") : "—",
+      sub: bestEntry ? `de ${bestEntry.total} mánagers` : "sin datos",
+      lime: true,
+    },
+    { label: "PUJAS ACTIVAS", value: `${userActiveBids.value}/${maxBidsPerUser.value}`, sub: marketCloseLabel.value, lime: false },
+  ];
+});
 
 function updateIsMobile(): void {
   isMobile.value = window.innerWidth < 768;
@@ -337,8 +399,27 @@ async function fetchLeagues(): Promise<void> {
   error.value = "";
   try {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
-    // Fetch market status from the first league to populate the stats card
     if (leagues.value.length > 0) {
+      const ids = leagues.value.map(l => l.id);
+
+      const [standingsResults, activityResults] = await Promise.all([
+        Promise.allSettled(ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`))),
+        Promise.allSettled(ids.map(id => api.get<{ data: ActivityEvent[] }>(`/api/v1/leagues/${id}/market/feed`))),
+      ]);
+
+      const map = new Map<number, StandingsResponse>();
+      standingsResults.forEach((result, i) => {
+        if (result.status === "fulfilled") map.set(ids[i]!, result.value);
+      });
+      standingsMap.value = map;
+
+      const allEvents: ActivityEvent[] = activityResults.flatMap(r =>
+        r.status === "fulfilled" ? r.value.data : [],
+      );
+      allEvents.sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+      recentActivity.value = allEvents.slice(0, 8).map(mapActivityEvent);
+
+      // Fetch market status from the first league to populate the stats card
       fetchMarketStatus(leagues.value[0]!.id);
     }
   } catch (e) {
@@ -782,6 +863,13 @@ onUnmounted(() => {
 .activity-time {
   color: var(--ink-400);
   font-size: 10px;
+}
+
+.activity-empty {
+  font-size: 11px;
+  color: var(--ink-500);
+  text-align: center;
+  padding: 12px 0;
 }
 
 /* ===== States ===== */

@@ -1,0 +1,67 @@
+{
+  "get": "teams",
+  "parameters": { "league": "141", "season": "2025" },
+  "errors": [],
+  "results": 3,
+  "paging": { "current": 1, "total": 1 },
+  "response": [
+    {
+      "team": {
+        "id": 9001,
+        "name": "Atlético Fictional",
+        "code": "AFI",
+        "country": "Spain",
+        "founded": 1925,
+        "national": false,
+        "logo": "https://media.api-sports.io/football/teams/9001.png"
+      },
+      "venue": {
+        "id": 8001,
+        "name": "Estadio Ejemplo",
+        "address": "Calle Falsa 123",
+        "city": "Testville",
+        "capacity": 30000,
+        "surface": "grass",
+        "image": "https://media.api-sports.io/football/venues/8001.png"
+      }
+    },
+    {
+      "team": {
+        "id": 9002,
+        "name": "Real Placeholder",
+        "code": "RPL",
+        "country": "Spain",
+        "founded": null,
+        "national": false,
+        "logo": "https://media.api-sports.io/football/teams/9002.png"
+      },
+      "venue": {
+        "id": 8002,
+        "name": "Sample Arena",
+        "address": null,
+        "city": "Mockford",
+        "capacity": 22000,
+        "surface": "grass",
+        "image": null
+      }
+    },
+    {
+      "team": {
+        "id": 9003,
+        "name": "Sporting Sample",
+        "code": null,
+        "country": "Spain",
+        "founded": 1940,
+        "national": false,
+        "logo": "https://media.api-sports.io/football/teams/9003.png"
+      },
+      "venue": {
+        "id": 8003,
+        "name": "Demo Stadium",
+        "city": "Fakeburg",
+        "capacity": 18000,
+        "surface": "grass"
+      }
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "get": "fixtures/players",
+  "parameters": { "fixture": "5001" },
+  "errors": [],
+  "results": 2,
+  "response": [
+    {
+      "team": { "id": 9001, "name": "Atlético Fictional" },
+      "players": [
+        {
+          "player": { "id": 70001, "name": "Fake Keeper", "photo": "https://media.api-sports.io/football/players/70001.png" },
+          "statistics": [
+            {
+              "games": { "minutes": 90, "position": "G", "rating": "7.5" },
+              "goals": { "total": null, "conceded": 0, "assists": null, "saves": 5 }
+            }
+          ]
+        },
+        {
+          "player": { "id": 70002, "name": "Placeholder Striker" },
+          "statistics": [
+            {
+              "games": { "minutes": 90, "position": "F" },
+              "goals": { "total": 2, "conceded": null, "assists": 1, "saves": null },
+              "penalty": { "won": null, "commited": null, "scored": 1, "missed": 1, "saved": null }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "team": { "id": 9002, "name": "Real Imaginary" },
+      "players": [
+        {
+          "player": { "id": 70003, "name": "Sample Defender" },
+          "statistics": [
+            {
+              "games": { "minutes": 90, "position": "D" },
+              "cards": { "yellow": 1 }
+            }
+          ]
+        },
+        {
+          "player": { "id": 70004, "name": "Dummy Keeper" },
+          "statistics": [
+            {
+              "games": { "minutes": 90, "position": "G" },
+              "goals": { "total": null, "conceded": 2, "assists": null, "saves": 3 },
+              "penalty": { "won": null, "commited": null, "scored": null, "missed": null, "saved": 1 }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

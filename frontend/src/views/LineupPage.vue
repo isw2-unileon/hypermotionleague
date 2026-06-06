@@ -1,44 +1,30 @@
 <template>
-  <AppLayout>
-    <div class="px-4 pt-6 pb-4">
+  <AppShell>
+    <div class="lineup">
+
       <!-- Header -->
-      <div class="flex items-center gap-3 mb-4">
-        <button
-          @click="router.back()"
-          class="text-green-300/60 hover:text-white transition-colors text-sm"
-        >
-          ← Volver
-        </button>
-        <h1 class="text-xl font-semibold text-white">Alineación</h1>
-      </div>
+      <header class="header">
+        <button type="button" class="back mono" @click="router.back()">← Volver</button>
+        <h1 class="title display">Alineación</h1>
+      </header>
 
       <!-- Matchday info -->
-      <div
-        v-if="matchday"
-        class="bg-green-950/60 border border-white/10 rounded-xl p-3 mb-4"
-      >
-        <p class="text-white font-semibold text-sm">
-          Jornada {{ matchday.number }} — {{ matchday.name }}
-        </p>
-        <p class="text-green-300/50 text-xs">Cierre: {{ formatDate(matchday.end_date) }}</p>
+      <div v-if="matchday" class="card matchday-card">
+        <p class="matchday-name">Jornada {{ matchday.number }} — {{ matchday.name }}</p>
+        <p class="matchday-close mono">Cierre: {{ formatDate(matchday.end_date) }}</p>
       </div>
 
       <!-- Formation selector -->
-      <div class="mb-4">
-        <p class="text-green-300/60 text-xs font-semibold uppercase tracking-wide mb-2">
-          Formación
-        </p>
-        <div class="flex gap-2 flex-wrap">
+      <div class="section">
+        <p class="label">Formación</p>
+        <div class="formation-row">
           <button
             v-for="f in formationKeys"
             :key="f"
+            type="button"
+            class="btn formation-btn"
+            :class="formation === f ? 'btn-primary' : 'btn-ghost'"
             @click="selectFormation(f)"
-            class="px-3 py-1.5 rounded-lg text-sm font-semibold border transition-colors"
-            :class="
-              formation === f
-                ? 'bg-amber-500 border-amber-500 text-white'
-                : 'bg-white/10 border-white/20 text-green-300/80 hover:bg-white/20'
-            "
           >
             {{ f }}
           </button>
@@ -46,52 +32,39 @@
       </div>
 
       <!-- Loading -->
-      <div v-if="loading" class="text-center text-green-300/60 py-12 text-sm">
-        Cargando...
-      </div>
+      <div v-if="loading" class="state state-muted">Cargando...</div>
 
       <!-- Error -->
-      <div v-else-if="error" class="text-center text-red-400 py-6 text-sm">
-        {{ error }}
-      </div>
+      <div v-else-if="error" class="state state-error">{{ error }}</div>
 
       <!-- No players -->
-      <div v-else-if="players.length === 0" class="text-center text-green-300/60 py-12 text-sm">
-        <p class="text-4xl mb-3">👕</p>
-        <p class="text-white font-semibold mb-1">No tienes jugadores en esta liga</p>
-        <RouterLink to="/market" class="text-amber-400 underline text-sm">Ir al mercado</RouterLink>
+      <div v-else-if="players.length === 0" class="state state-muted">
+        <p class="empty-icon">👕</p>
+        <p class="empty-title">No tienes jugadores en esta liga</p>
+        <RouterLink to="/market" class="empty-link">Ir al mercado</RouterLink>
       </div>
 
-      <div v-else>
+      <template v-else>
         <!-- Position slot progress -->
-        <div class="flex gap-2 mb-4">
+        <div class="slot-row">
           <div
             v-for="pos in POSITIONS"
             :key="pos"
-            class="flex-1 rounded-lg p-2 text-center border transition-colors"
-            :class="
-              slotsFilled(pos) === formationSlots(pos)
-                ? 'border-green-400/40 bg-green-500/10'
-                : 'border-white/10 bg-white/5'
-            "
+            class="slot-cell"
+            :class="slotsFilled(pos) === formationSlots(pos) ? 'slot-full' : ''"
           >
-            <p class="text-xs font-bold mb-0.5" :class="positionColor(pos)">{{ pos }}</p>
-            <p class="text-white text-xs font-semibold">
-              {{ slotsFilled(pos) }}/{{ formationSlots(pos) }}
-            </p>
+            <span class="pos" :class="posClass(pos)">{{ pos }}</span>
+            <span class="slot-count mono">{{ slotsFilled(pos) }}/{{ formationSlots(pos) }}</span>
           </div>
         </div>
 
         <!-- Save button -->
         <button
-          @click="saveLineup"
+          type="button"
+          class="btn save-btn"
+          :class="isLineupValid ? 'btn-primary' : 'btn-disabled'"
           :disabled="!isLineupValid || saving"
-          class="w-full py-3 rounded-xl text-sm font-semibold mb-3 transition-colors"
-          :class="
-            isLineupValid
-              ? 'bg-amber-500 hover:bg-amber-400 text-white'
-              : 'bg-white/10 text-white/30 cursor-not-allowed'
-          "
+          @click="saveLineup"
         >
           {{
             saving
@@ -103,90 +76,57 @@
         </button>
 
         <!-- Save feedback -->
-        <div
-          v-if="saveError"
-          class="mb-4 p-3 bg-red-500/20 border border-red-400/30 rounded-lg text-red-200 text-sm"
-        >
-          {{ saveError }}
-        </div>
-        <div
-          v-if="saveSuccess"
-          class="mb-4 p-3 bg-green-500/20 border border-green-400/30 rounded-lg text-green-200 text-sm"
-        >
-          ¡Alineación guardada correctamente!
-        </div>
+        <div v-if="saveError" class="feedback feedback-error">{{ saveError }}</div>
+        <div v-if="saveSuccess" class="feedback feedback-ok">¡Alineación guardada correctamente!</div>
 
         <!-- Players grouped by position -->
-        <div v-for="pos in POSITIONS" :key="pos" class="mb-5">
-          <h3 class="text-green-300/60 text-xs font-semibold uppercase tracking-wide mb-2 px-1">
-            {{ positionLabel(pos) }}
-          </h3>
-          <div
-            v-if="playersByPosition(pos).length > 0"
-            class="rounded-xl overflow-hidden border border-white/10"
-          >
+        <div v-for="pos in POSITIONS" :key="pos" class="pos-group">
+          <p class="pos-group-label label">{{ positionLabel(pos) }}</p>
+          <div v-if="playersByPosition(pos).length > 0" class="player-list">
             <div
-              v-for="(player, i) in playersByPosition(pos)"
+              v-for="player in playersByPosition(pos)"
               :key="player.player_id"
-              class="flex items-center px-4 py-3 cursor-pointer transition-colors"
+              class="player-row"
               :class="[
-                i > 0 ? 'border-t border-white/5' : '',
-                starterMap[player.player_id]
-                  ? 'bg-amber-500/10'
-                  : canAddStarter(pos)
-                  ? 'hover:bg-white/5'
-                  : 'opacity-50',
+                starterMap[player.player_id] ? 'player-row-active' : '',
+                !starterMap[player.player_id] && !canAddStarter(pos) ? 'player-row-disabled' : '',
               ]"
               @click="toggleStarter(player)"
             >
               <!-- Checkbox -->
               <div
-                class="w-5 h-5 rounded-full border-2 flex items-center justify-center mr-3 flex-shrink-0 transition-colors"
-                :class="
-                  starterMap[player.player_id]
-                    ? 'border-amber-400 bg-amber-400'
-                    : 'border-white/20'
-                "
+                class="checkbox"
+                :class="starterMap[player.player_id] ? 'checkbox-on' : ''"
               >
-                <span v-if="starterMap[player.player_id]" class="text-white text-xs leading-none">
-                  ✓
-                </span>
+                <span v-if="starterMap[player.player_id]" class="checkbox-tick">✓</span>
               </div>
 
-              <!-- Player info -->
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-white truncate">
+              <!-- Info -->
+              <div class="player-info">
+                <p class="player-name">
                   {{ player.player.first_name }} {{ player.player.last_name }}
                 </p>
-                <p class="text-xs text-green-300/50">{{ player.player.team_name }}</p>
+                <p class="player-team mono">{{ player.player.team_name }}</p>
               </div>
 
-              <!-- Starter / Bench badge -->
-              <span
-                class="ml-3 px-2 py-0.5 rounded text-xs font-semibold flex-shrink-0"
-                :class="
-                  starterMap[player.player_id]
-                    ? 'bg-amber-500/20 text-amber-400'
-                    : 'bg-white/10 text-white/40'
-                "
-              >
+              <!-- Badge -->
+              <span class="tag" :class="starterMap[player.player_id] ? 'tag-lime' : ''">
                 {{ starterMap[player.player_id] ? 'Titular' : 'Suplente' }}
               </span>
             </div>
           </div>
-          <p v-else class="text-green-300/40 text-xs px-1">
-            No tienes jugadores en esta posición
-          </p>
+          <p v-else class="no-players">No tienes jugadores en esta posición</p>
         </div>
-      </div>
+      </template>
+
     </div>
-  </AppLayout>
+  </AppShell>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter, RouterLink } from 'vue-router';
-import AppLayout from '@/layouts/AppLayout.vue';
+import AppShell from '@/design-system/AppShell.vue';
 import api from '@/lib/api';
 
 type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
@@ -256,13 +196,8 @@ function positionLabel(pos: PlayerPosition): string {
   return { GK: 'Porteros', DEF: 'Defensas', MID: 'Centrocampistas', FWD: 'Delanteros' }[pos];
 }
 
-function positionColor(pos: PlayerPosition): string {
-  return {
-    GK: 'text-amber-400',
-    DEF: 'text-blue-400',
-    MID: 'text-green-400',
-    FWD: 'text-red-400',
-  }[pos];
+function posClass(pos: PlayerPosition): string {
+  return { GK: 'pos-gk', DEF: 'pos-def', MID: 'pos-mid', FWD: 'pos-fwd' }[pos];
 }
 
 function formatDate(dateStr: string): string {
@@ -377,3 +312,254 @@ onMounted(async () => {
   }
 });
 </script>
+
+<style scoped>
+.lineup {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  color: var(--ink-100);
+}
+
+/* Header */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.back {
+  align-self: flex-start;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--ink-300);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.back:hover { color: var(--lime); }
+
+.title {
+  font-size: 56px;
+  line-height: 0.9;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Matchday card */
+.matchday-card {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.matchday-name {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.matchday-close {
+  font-size: 11px;
+  color: var(--ink-400);
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* Formation */
+.section { display: flex; flex-direction: column; gap: 8px; }
+
+.formation-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.formation-btn {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+/* Slot progress */
+.slot-row {
+  display: flex;
+  gap: 8px;
+}
+
+.slot-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--ink-700);
+  background: var(--ink-800);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.slot-full {
+  border-color: rgba(199, 255, 61, 0.35);
+  background: rgba(199, 255, 61, 0.06);
+}
+
+.slot-count {
+  font-size: 12px;
+  color: var(--ink-200);
+}
+
+/* Save button */
+.save-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 14px;
+}
+
+.btn-disabled {
+  background: var(--ink-700);
+  color: var(--ink-400);
+  border: 1px solid var(--ink-600);
+  cursor: not-allowed;
+}
+
+/* Feedback banners */
+.feedback {
+  padding: 12px 16px;
+  border-radius: var(--r-sm);
+  font-size: 13px;
+}
+
+.feedback-error {
+  background: rgba(255, 98, 98, 0.12);
+  border: 1px solid rgba(255, 98, 98, 0.3);
+  color: var(--down);
+}
+
+.feedback-ok {
+  background: rgba(91, 227, 138, 0.1);
+  border: 1px solid rgba(91, 227, 138, 0.25);
+  color: var(--up);
+}
+
+/* States */
+.state {
+  text-align: center;
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+.state-muted { color: var(--ink-400); }
+.state-error { color: var(--down); }
+
+.empty-icon { font-size: 40px; margin: 0 0 12px; }
+.empty-title { font-size: 15px; font-weight: 600; margin: 0 0 8px; color: var(--ink-100); }
+.empty-link { color: var(--lime); font-size: 13px; }
+
+/* Position groups */
+.pos-group { display: flex; flex-direction: column; gap: 6px; }
+
+.pos-group-label {
+  margin: 0;
+}
+
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--ink-800);
+  border: 1px solid var(--ink-700);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.player-row:hover { background: var(--ink-700); }
+
+.player-row-active {
+  background: rgba(199, 255, 61, 0.07);
+  border-color: rgba(199, 255, 61, 0.25);
+}
+
+.player-row-active:hover {
+  background: rgba(199, 255, 61, 0.1);
+}
+
+.player-row-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Checkbox */
+.checkbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--ink-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.checkbox-on {
+  border-color: var(--lime);
+  background: var(--lime);
+}
+
+.checkbox-tick {
+  font-size: 11px;
+  color: var(--ink-900);
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* Player info */
+.player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-100);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-team {
+  font-size: 10px;
+  color: var(--ink-400);
+  letter-spacing: 0.08em;
+  margin: 2px 0 0;
+}
+
+.no-players {
+  font-size: 12px;
+  color: var(--ink-500);
+  margin: 0;
+  padding: 4px 2px;
+}
+
+@media (max-width: 767px) {
+  .title { font-size: 36px; }
+  .slot-row { flex-wrap: wrap; }
+  .slot-cell { min-width: calc(50% - 4px); }
+}
+</style>

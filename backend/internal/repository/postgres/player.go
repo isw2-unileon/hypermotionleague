@@ -34,6 +34,41 @@ func (r *PlayerRepo) Create(ctx context.Context, player *models.Player) error {
 	).Scan(&player.ID, &player.CreatedAt, &player.UpdatedAt)
 }
 
+// UpsertByExternalID inserts a player or updates it on external_id conflict,
+// keyed on the API-Football player.id. Used by the sync-players command for
+// idempotent loads.
+//
+// market_value and is_active are intentionally omitted: they are fantasy
+// game-state with no API source, so insert leaves them at their column defaults
+// and a conflicting update does not clobber them. The nullable team_id,
+// jersey_number and age write SQL NULL when their pointers are nil.
+func (r *PlayerRepo) UpsertByExternalID(ctx context.Context, player *models.Player) error {
+	query := `
+		INSERT INTO players (external_id, first_name, last_name, position, team_name,
+		                     team_id, jersey_number, photo_url, age)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (external_id) DO UPDATE SET
+			first_name = EXCLUDED.first_name,
+			last_name = EXCLUDED.last_name,
+			position = EXCLUDED.position,
+			team_name = EXCLUDED.team_name,
+			team_id = EXCLUDED.team_id,
+			jersey_number = EXCLUDED.jersey_number,
+			photo_url = EXCLUDED.photo_url,
+			age = EXCLUDED.age,
+			updated_at = NOW()
+		RETURNING id, created_at, updated_at`
+
+	err := r.pool.QueryRow(ctx, query,
+		player.ExternalID, player.FirstName, player.LastName, player.Position, player.TeamName,
+		player.TeamID, player.JerseyNumber, player.PhotoURL, player.Age,
+	).Scan(&player.ID, &player.CreatedAt, &player.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("upsert player by external id %d: %w", player.ExternalID, err)
+	}
+	return nil
+}
+
 // GetByID retrieves a player by ID.
 func (r *PlayerRepo) GetByID(ctx context.Context, id int64) (*models.Player, error) {
 	query := `
@@ -155,12 +190,42 @@ func (r *PlayerRepo) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-// UpsertPoints inserts or updates player points for a matchday.
+// GetByExternalID retrieves a player by their API-Football external_id. Used by
+// the ingest pipeline to resolve a fetched stat row to our internal player id
+// and position. Returns (nil, nil) when no player carries that external_id, so
+// the caller can count it as an unmatched/skipped player rather than an error.
+func (r *PlayerRepo) GetByExternalID(ctx context.Context, externalID int64) (*models.Player, error) {
+	query := `
+		SELECT id, first_name, last_name, position, team_name, market_value, is_active,
+		       external_id, created_at, updated_at
+		FROM players WHERE external_id = $1`
+
+	player := &models.Player{}
+	err := r.pool.QueryRow(ctx, query, externalID).Scan(
+		&player.ID, &player.FirstName, &player.LastName, &player.Position,
+		&player.TeamName, &player.MarketValue, &player.IsActive,
+		&player.ExternalID, &player.CreatedAt, &player.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get player by external id %d: %w", externalID, err)
+	}
+	return player, nil
+}
+
+// UpsertPoints inserts or updates player points for a matchday. Keyed on
+// (player_id, matchday_id) so the ingest pipeline can re-run idempotently.
+// Writes both the computed points and the raw stat columns the scoring engine
+// consumed, including the goals_conceded/pens_missed/pens_saved/saves columns
+// added in migration 004_extend_player_points_stats.
 func (r *PlayerRepo) UpsertPoints(ctx context.Context, pp *models.PlayerPoints) error {
 	query := `
 		INSERT INTO player_points (player_id, matchday_id, points, goals, assists,
-		                           minutes_played, yellow_cards, red_cards, clean_sheet)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		                           minutes_played, yellow_cards, red_cards, clean_sheet,
+		                           goals_conceded, pens_missed, pens_saved, saves)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (player_id, matchday_id)
 		DO UPDATE SET
 			points = EXCLUDED.points,
@@ -170,12 +235,17 @@ func (r *PlayerRepo) UpsertPoints(ctx context.Context, pp *models.PlayerPoints) 
 			yellow_cards = EXCLUDED.yellow_cards,
 			red_cards = EXCLUDED.red_cards,
 			clean_sheet = EXCLUDED.clean_sheet,
+			goals_conceded = EXCLUDED.goals_conceded,
+			pens_missed = EXCLUDED.pens_missed,
+			pens_saved = EXCLUDED.pens_saved,
+			saves = EXCLUDED.saves,
 			updated_at = NOW()
 		RETURNING id, updated_at`
 
 	return r.pool.QueryRow(ctx, query,
 		pp.PlayerID, pp.MatchdayID, pp.Points, pp.Goals, pp.Assists,
 		pp.MinutesPlayed, pp.YellowCards, pp.RedCards, pp.CleanSheet,
+		pp.GoalsConceded, pp.PensMissed, pp.PensSaved, pp.Saves,
 	).Scan(&pp.ID, &pp.UpdatedAt)
 }
 

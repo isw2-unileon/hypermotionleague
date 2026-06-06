@@ -230,7 +230,37 @@ func (h *MarketHandler) CancelBid(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Bid successfully cancelled"})
 }
 
-// 6. GetMarketStatus - Returns the market status and closing time.
+// 6. GetRecentActivity - Returns the last 10 market events for a league.
+func (h *MarketHandler) GetRecentActivity(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid league id"})
+		return
+	}
+
+	if !h.requireMember(c, leagueID, userID) {
+		return
+	}
+
+	events, err := h.marketRepo.GetRecentActivity(c.Request.Context(), leagueID, 10)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch activity"})
+		return
+	}
+
+	if events == nil {
+		events = []models.ActivityEvent{}
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": events})
+}
+
+// 7. GetMarketStatus - Returns the market status and closing time.
 func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	userID := c.GetInt64("userID")
 	if userID == 0 {

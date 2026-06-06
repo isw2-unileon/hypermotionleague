@@ -13,12 +13,13 @@ import (
 
 // LeagueHandler handles HTTP requests for leagues
 type LeagueHandler struct {
-	repo repository.LeagueRepository
+	repo  repository.LeagueRepository
+	teams repository.TeamRepository
 }
 
 // NewLeagueHandler creates a new instance of the handler
-func NewLeagueHandler(repo repository.LeagueRepository) *LeagueHandler {
-	return &LeagueHandler{repo: repo}
+func NewLeagueHandler(repo repository.LeagueRepository, teams repository.TeamRepository) *LeagueHandler {
+	return &LeagueHandler{repo: repo, teams: teams}
 }
 
 func (h *LeagueHandler) Create(c *gin.Context) {
@@ -78,6 +79,12 @@ func (h *LeagueHandler) Create(c *gin.Context) {
 	}
 	if err := h.repo.AddMember(c.Request.Context(), member); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Liga creada pero no se pudo añadir al creador"})
+		return
+	}
+
+	// Draft the owner's initial squad
+	if err := h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to draft initial squad: " + err.Error()})
 		return
 	}
 
@@ -181,6 +188,12 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 
 	if err := h.repo.AddMember(c.Request.Context(), member); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo unir a la liga"})
+		return
+	}
+
+	// Draft the new member's initial squad
+	if err := h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to draft initial squad: " + err.Error()})
 		return
 	}
 
