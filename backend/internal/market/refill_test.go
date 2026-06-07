@@ -1,4 +1,4 @@
-package main
+package market
 
 import (
 	"math/rand"
@@ -78,7 +78,7 @@ func TestSelectFreeAgents_Distribution(t *testing.T) {
 	free := pool(5, 10, 10, 5) // plenty of every position
 	rng := rand.New(rand.NewSource(1))
 
-	got := selectFreeAgents(free, 12, rng)
+	got := SelectFreeAgents(free, 12, rng)
 	if len(got) != 12 {
 		t.Fatalf("len = %d, want 12", len(got))
 	}
@@ -99,7 +99,7 @@ func TestSelectFreeAgents_ShortPositionFills(t *testing.T) {
 	free := pool(1, 12, 12, 6)
 	rng := rand.New(rand.NewSource(7))
 
-	got := selectFreeAgents(free, 12, rng)
+	got := SelectFreeAgents(free, 12, rng)
 	if len(got) != 12 {
 		t.Fatalf("len = %d, want 12", len(got))
 	}
@@ -113,7 +113,7 @@ func TestSelectFreeAgents_FewerThanTarget(t *testing.T) {
 	free := pool(1, 1, 1, 1) // only 4 free agents, target 12
 	rng := rand.New(rand.NewSource(3))
 
-	got := selectFreeAgents(free, 12, rng)
+	got := SelectFreeAgents(free, 12, rng)
 	if len(got) != 4 {
 		t.Fatalf("len = %d, want 4 (all available)", len(got))
 	}
@@ -122,8 +122,8 @@ func TestSelectFreeAgents_FewerThanTarget(t *testing.T) {
 
 func TestSelectFreeAgents_Deterministic(t *testing.T) {
 	free := pool(5, 10, 10, 5)
-	a := selectFreeAgents(free, 12, rand.New(rand.NewSource(42)))
-	b := selectFreeAgents(free, 12, rand.New(rand.NewSource(42)))
+	a := SelectFreeAgents(free, 12, rand.New(rand.NewSource(42)))
+	b := SelectFreeAgents(free, 12, rand.New(rand.NewSource(42)))
 	if !sameIDs(a, b) {
 		t.Errorf("same seed produced different selections")
 	}
@@ -137,7 +137,7 @@ func TestSelectFreeAgents_Rotates(t *testing.T) {
 
 	seen := map[int64]bool{}
 	for i := 0; i < 15; i++ {
-		for _, p := range selectFreeAgents(free, 12, rng) {
+		for _, p := range SelectFreeAgents(free, 12, rng) {
 			seen[p.ID] = true
 		}
 	}
