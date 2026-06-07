@@ -30,9 +30,10 @@ func NewLineupHandler(
 	}
 }
 
-// getMatchdayByNumber  is a helper that searches for a matchday by its number within a league.
-func (h *LineupHandler) getMatchdayByNumber(c *gin.Context, leagueID int64, number int) (*models.Matchday, bool) {
-	matchdays, err := h.matchdayRepo.GetByLeague(c.Request.Context(), leagueID)
+// getMatchdayByNumber resolves a matchday by its app sequential number.
+// Matchdays are global, so the lookup is not scoped to a league.
+func (h *LineupHandler) getMatchdayByNumber(c *gin.Context, number int) (*models.Matchday, bool) {
+	matchdays, err := h.matchdayRepo.GetAll(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener jornadas"})
 		return nil, false
@@ -77,7 +78,7 @@ func (h *LineupHandler) GetLineup(c *gin.Context) {
 		return
 	}
 
-	matchday, ok := h.getMatchdayByNumber(c, leagueID, number)
+	matchday, ok := h.getMatchdayByNumber(c, number)
 	if !ok {
 		return
 	}
@@ -132,7 +133,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		return
 	}
 
-	matchday, ok := h.getMatchdayByNumber(c, leagueID, number)
+	matchday, ok := h.getMatchdayByNumber(c, number)
 	if !ok {
 		return
 	}
@@ -255,7 +256,7 @@ func (h *LineupHandler) RemoveLineupPlayer(c *gin.Context) {
 		return
 	}
 
-	matchday, ok := h.getMatchdayByNumber(c, leagueID, number)
+	matchday, ok := h.getMatchdayByNumber(c, number)
 	if !ok {
 		return
 	}

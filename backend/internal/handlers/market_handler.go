@@ -315,7 +315,7 @@ func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	// Trading-window state: depends on the time window and the league's matchdays.
 	// An empty matchdays slice means "no active matchday" (the rule then depends
 	// only on the time window) — no error.
-	matchdays, err := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	matchdays, err := h.matchdayRepo.GetAll(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve matchdays"})
 		return
@@ -360,7 +360,7 @@ func (h *MarketHandler) PayClause(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// Market window (Sprint 3 1.A): no money moves while the market is closed.
-	matchdays, err := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	matchdays, err := h.matchdayRepo.GetAll(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve matchdays"})
 		return

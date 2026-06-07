@@ -10,35 +10,35 @@ BEGIN;
 -- Matchday 3 becomes the active one, centered on today.
 -- Matchday 4 becomes the next upcoming one.
 
-UPDATE matchdays SET is_current = FALSE
-WHERE league_id = 1;
+-- Matchdays are global now, so reset the current flag across all of them.
+UPDATE matchdays SET is_current = FALSE;
 
 -- Past matchday with points data (keep close to now so demo feels recent)
 UPDATE matchdays SET
     start_date = (NOW() - INTERVAL '14 days'),
     end_date   = (NOW() - INTERVAL '8 days'),
     is_current = FALSE
-WHERE league_id = 1 AND number = 1;
+WHERE number = 1;
 
 UPDATE matchdays SET
     start_date = (NOW() - INTERVAL '7 days'),
     end_date   = (NOW() - INTERVAL '1 day'),
     is_current = FALSE
-WHERE league_id = 1 AND number = 2;
+WHERE number = 2;
 
 -- Current matchday: open window around today (deadline ~5 days from now)
 UPDATE matchdays SET
     start_date = (NOW() - INTERVAL '1 day'),
     end_date   = (NOW() + INTERVAL '5 days'),
     is_current = TRUE
-WHERE league_id = 1 AND number = 3;
+WHERE number = 3;
 
 -- Future matchday
 UPDATE matchdays SET
     start_date = (NOW() + INTERVAL '7 days'),
     end_date   = (NOW() + INTERVAL '14 days'),
     is_current = FALSE
-WHERE league_id = 1 AND number = 4;
+WHERE number = 4;
 
 -- ── Market listings: ensure at least one open listing has a future expiry ─────
 
