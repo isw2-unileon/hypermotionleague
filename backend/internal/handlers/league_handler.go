@@ -177,11 +177,31 @@ func (h *LeagueHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, league)
 }
 
-// GetByID searches for a league by its ID and returns it
+// GetByID searches for a league by its ID and returns it. Only members of the
+// league may read it: the response includes the invite_code, so an
+// authenticated non-member must not be able to enumerate league IDs and join
+// arbitrary leagues.
 func (h *LeagueHandler) GetByID(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	// Authorization (object-level): the caller must belong to this league.
+	member, err := h.repo.GetMember(c.Request.Context(), id, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar membresía"})
+		return
+	}
+	if member == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No eres miembro de esta liga"})
 		return
 	}
 
@@ -288,11 +308,30 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 	c.JSON(http.StatusOK, league)
 }
 
-// GetMembers returns the members of a league
+// GetMembers returns the members of a league. Only members of the league may
+// read the roster (it exposes other users' usernames / display names), so a
+// non-member is rejected with 403.
 func (h *LeagueHandler) GetMembers(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	// Authorization (object-level): the caller must belong to this league.
+	member, err := h.repo.GetMember(c.Request.Context(), id, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar membresía"})
+		return
+	}
+	if member == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No eres miembro de esta liga"})
 		return
 	}
 
