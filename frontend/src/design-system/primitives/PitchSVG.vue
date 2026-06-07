@@ -1,19 +1,28 @@
 <template>
   <svg
     class="pitch"
-    viewBox="0 0 800 500"
+    viewBox="0 0 500 800"
     preserveAspectRatio="xMidYMid slice"
   >
-    <rect x="40" y="40" width="720" height="420" :fill="fill" :stroke="stroke" stroke-width="1.5" />
-    <line x1="400" y1="40" x2="400" y2="460" :stroke="stroke" stroke-width="1.5" />
-    <circle cx="400" cy="250" r="70" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <circle cx="400" cy="250" r="2" :fill="stroke" />
-    <rect x="40" y="150" width="120" height="200" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <rect x="40" y="200" width="50" height="100" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <rect x="640" y="150" width="120" height="200" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <rect x="710" y="200" width="50" height="100" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <path d="M 160 175 A 70 70 0 0 1 160 325" fill="none" :stroke="stroke" stroke-width="1.5" />
-    <path d="M 640 175 A 70 70 0 0 0 640 325" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Field outline -->
+    <rect x="40" y="40" width="420" height="720" :fill="fill" :stroke="stroke" stroke-width="1.5" />
+    <!-- Halfway line -->
+    <line x1="40" y1="400" x2="460" y2="400" :stroke="stroke" stroke-width="1.5" />
+    <!-- Center circle + spot -->
+    <circle cx="250" cy="400" r="70" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <circle cx="250" cy="400" r="2" :fill="stroke" />
+    <!-- Top penalty area (big box) -->
+    <rect x="150" y="40" width="200" height="120" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Top goal area (small box) -->
+    <rect x="200" y="40" width="100" height="50" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Top penalty arc (bulges downward into field) -->
+    <path d="M 175 160 A 70 70 0 0 0 325 160" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Bottom penalty area (big box) -->
+    <rect x="150" y="640" width="200" height="120" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Bottom goal area (small box) -->
+    <rect x="200" y="710" width="100" height="50" fill="none" :stroke="stroke" stroke-width="1.5" />
+    <!-- Bottom penalty arc (bulges upward into field) -->
+    <path d="M 175 640 A 70 70 0 0 1 325 640" fill="none" :stroke="stroke" stroke-width="1.5" />
   </svg>
 </template>
 
