@@ -1,5 +1,5 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import { BASE_URL } from "@/lib/api";
+import api from "@/lib/api";
 import type { MarketStatus, ApiEnvelope } from "@/lib/market";
 
 export function useMarketCountdown(leagueId: () => number | null) {
@@ -13,15 +13,10 @@ export function useMarketCountdown(leagueId: () => number | null) {
     const id = leagueId();
     if (id == null) return;
     try {
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BASE_URL}/api/v1/leagues/${id}/market/status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const body: ApiEnvelope<MarketStatus> = await res.json();
+      const body = await api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`);
       status.value = body.data;
-    } catch (e){
-        void e;
+    } catch {
+      // Non-fatal: countdown stays at last known value or default
     }
   }
 

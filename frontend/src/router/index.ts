@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router";
 import AuthPage from "@/views/AuthPage.vue";
+import { getToken, clearToken } from "@/lib/tokenStore";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -78,13 +79,13 @@ function isTokenValid(token: string | null): boolean {
 }
 
 router.beforeEach((to) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   const valid = isTokenValid(token);
 
   // Expired or malformed token: clear it so subsequent requests don't carry
   // a stale credential, then treat the user as unauthenticated.
   if (token && !valid) {
-    localStorage.removeItem("token");
+    clearToken();
   }
 
   if (!to.meta.public && !valid) {

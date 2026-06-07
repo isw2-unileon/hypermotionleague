@@ -465,20 +465,24 @@ async function onLeagueChange() {
 
     // 1. Fetch current matchday
     const matchdaysData = await api.get<{ matchdays: Matchday[] }>(`/api/v1/leagues/${leagueId}/matchdays`);
+    if (selectedLeagueId.value !== leagueId) return;
     const matchdays = matchdaysData.matchdays ?? [];
     currentMatchday.value = matchdays.find(m => m.is_current) ?? matchdays[0] ?? null;
 
     // 2. Fetch squad (needed for bench when building a lineup from scratch)
     const teamData = await api.get<UserTeam>(`/api/v1/leagues/${leagueId}/team`);
+    if (selectedLeagueId.value !== leagueId) return;
     squadPlayers.value = teamData.players ?? [];
 
     // 3. Try to fetch existing lineup
     if (currentMatchday.value) {
       // Matchday exists — try matchday-specific lineup
       try {
-        lineup.value = await api.get<LineupWithPlayers>(
+        const lineupData = await api.get<LineupWithPlayers>(
           `/api/v1/leagues/${leagueId}/matchdays/${currentMatchday.value.number}/lineup`,
         );
+        if (selectedLeagueId.value !== leagueId) return;
+        lineup.value = lineupData;
       } catch {
         lineup.value = null;
       }
@@ -486,9 +490,11 @@ async function onLeagueChange() {
     // Fallback: try default lineup if no matchday or no matchday-specific lineup
     if (!lineup.value) {
       try {
-        lineup.value = await api.get<LineupWithPlayers>(
+        const lineupData = await api.get<LineupWithPlayers>(
           `/api/v1/leagues/${leagueId}/lineup/default`,
         );
+        if (selectedLeagueId.value !== leagueId) return;
+        lineup.value = lineupData;
       } catch {
         lineup.value = null;
       }

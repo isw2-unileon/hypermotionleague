@@ -19,7 +19,7 @@ jobs:
     # The backend reads JWT_SECRET on boot (config.Load fails fast if empty)
     # and connects to Postgres for every handler. Both must be present.
     env:
-      JWT_SECRET: ci-e2e-secret-not-real
+      JWT_SECRET: ci-e2e-secret-not-real-but-long-enough-32
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/hypermotion_test?sslmode=disable
       PORT: "8080"
       GIN_MODE: release

@@ -1,4 +1,5 @@
   import router from "@/router";
+import { getToken, clearToken } from "@/lib/tokenStore";
 
 // Full backend base URL in production (e.g. https://xxx.onrender.com), read
 // from the VITE_API_URL env var at build time. In dev it's typically unset, so
@@ -8,7 +9,7 @@
 export const BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const token = localStorage.getItem("token");
+  const token = getToken();
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -24,7 +25,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
 
   if (res.status === 401) {
-    localStorage.removeItem("token");
+    clearToken();
     router.push("/auth");
     throw new Error("No autorizado");
   }

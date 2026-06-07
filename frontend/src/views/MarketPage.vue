@@ -377,6 +377,7 @@ async function loadMarket(id: number): Promise<void> {
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
   ]);
+  if (leagueId.value !== id) return;
   league.value = leagueData;
   balance.value = members.find((m) => m.user_id === myUserId)?.budget ?? 0;
   listings.value = listingsEnv.data ?? [];
@@ -387,6 +388,7 @@ async function loadMarket(id: number): Promise<void> {
     api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
     api.get<Matchday | null>(`/api/v1/leagues/${id}/matchdays/current`),
   ]);
+  if (leagueId.value !== id) return;
   marketStatus.value = statusRes.status === "fulfilled" ? (statusRes.value.data ?? null) : null;
   // When there is no current matchday the endpoint resolves 200 with a null
   // body (not a rejection), so guard .number to avoid "Cannot read properties
@@ -401,11 +403,13 @@ async function refresh(): Promise<void> {
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
   ]);
+  if (leagueId.value !== id) return;
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
   const statusRes = await Promise.allSettled([
     api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
+  if (leagueId.value !== id) return;
   if (statusRes[0].status === "fulfilled") marketStatus.value = statusRes[0].value.data ?? null;
 }
 

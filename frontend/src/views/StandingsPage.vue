@@ -258,10 +258,12 @@ async function selectMatchday(num: number | null): Promise<void> {
 }
 
 async function fetchMatchdays() {
+  const id = selectedLeagueId.value;
   try {
     const data = await api.get<{ matchdays: Matchday[] }>(
-      `/api/v1/leagues/${selectedLeagueId.value}/matchdays`,
+      `/api/v1/leagues/${id}/matchdays`,
     );
+    if (selectedLeagueId.value !== id) return;
     matchdays.value = data.matchdays ?? [];
   } catch {
     // no blocking — standings can still load
@@ -269,16 +271,20 @@ async function fetchMatchdays() {
 }
 
 async function fetchStandings() {
+  const id = selectedLeagueId.value;
   loading.value = true;
   error.value = "";
   try {
     const path =
       selectedMatchdayNumber.value !== null
-        ? `/api/v1/leagues/${selectedLeagueId.value}/matchdays/${selectedMatchdayNumber.value}/standings`
-        : `/api/v1/leagues/${selectedLeagueId.value}/standings`;
+        ? `/api/v1/leagues/${id}/matchdays/${selectedMatchdayNumber.value}/standings`
+        : `/api/v1/leagues/${id}/standings`;
 
-    standings.value = await api.get<Standings>(path);
+    const result = await api.get<Standings>(path);
+    if (selectedLeagueId.value !== id) return;
+    standings.value = result;
   } catch (e: unknown) {
+    if (selectedLeagueId.value !== id) return;
     error.value =
       e instanceof Error ? e.message : "Error al cargar la clasificación";
     standings.value = null;

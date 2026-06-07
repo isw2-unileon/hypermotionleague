@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -9,23 +10,31 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/market"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
+// clausePayer is a minimal interface for the team repo dependency used only by
+// PayClause. Defined locally to avoid extending the shared TeamRepository
+// interface and breaking other handler mocks.
+type clausePayer interface {
+	PayClauseTx(ctx context.Context, leagueID, buyerID, playerID int64) (*models.ClauseResult, error)
+}
+
 // MarketHandler handles the logic for the market endpoints.
 type MarketHandler struct {
-	marketRepo   *postgres.MarketRepo
-	playerRepo   *postgres.PlayerRepo
-	teamRepo     *postgres.TeamRepo
-	leagueRepo   *postgres.LeagueRepo // ADDED: League repository for member validation
-	matchdayRepo *postgres.MatchdayRepo
+	marketRepo   repository.MarketRepository
+	playerRepo   repository.PlayerRepository
+	teamRepo     clausePayer
+	leagueRepo   repository.LeagueRepository
+	matchdayRepo repository.MatchdayRepository
 	loc          *time.Location // Europe/Madrid, for the market trading window
 }
 
 // NewMarketHandler creates a new instance by injecting the required repositories.
 // It loads the market timezone once; if loading fails (the embedded tzdata is
 // somehow unavailable), it falls back to UTC so the handler still works.
-func NewMarketHandler(marketRepo *postgres.MarketRepo, playerRepo *postgres.PlayerRepo, teamRepo *postgres.TeamRepo, leagueRepo *postgres.LeagueRepo, matchdayRepo *postgres.MatchdayRepo) *MarketHandler {
+func NewMarketHandler(marketRepo repository.MarketRepository, playerRepo repository.PlayerRepository, teamRepo clausePayer, leagueRepo repository.LeagueRepository, matchdayRepo repository.MatchdayRepository) *MarketHandler {
 	loc, err := market.Location()
 	if err != nil {
 		loc = time.UTC
