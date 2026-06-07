@@ -175,10 +175,15 @@ func run(dryRun bool, round, season, league, appMatchday int) error {
 		"lineups_propagated", lineupsPropagated,
 	)
 
-	// Surface incomplete coverage as a non-zero exit so a partial load is not
-	// mistaken for a clean one.
+	// Unmatched players (returned by API-Football but absent from our players
+	// table — later signings, youth, partially-loaded squads) are NOT fatal:
+	// they cannot be scored and are in no lineup, so we skip them with a warning
+	// and let the pipeline finish. The matched players' points were upserted and
+	// propagated above, so the standings still update. (Real failures — DB,
+	// player_points writes, propagation — already return above and abort.)
 	if unmatched > 0 {
-		return fmt.Errorf("incomplete coverage: %d fetched players had no matching external_id in the players table", unmatched)
+		logger.Warn("skipped unmatched players (no external_id match in the players table)",
+			"count", unmatched, "matched", matched)
 	}
 	return nil
 }
