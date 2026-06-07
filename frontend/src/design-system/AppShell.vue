@@ -75,6 +75,7 @@ import Logo from "./primitives/Logo.vue";
 import TabBar from "./primitives/TabBar.vue";
 import MarketCountdown from "./MarketCountDown.vue";
 import { useMarketCountdown } from "@/composables/useMarketCountdown";
+import { activeLeagueId } from "@/lib/activeLeague";
 
 
 
@@ -90,9 +91,8 @@ interface NavItem {
 const route = useRoute();
 const router = useRouter();
 
-// Selected league: For now, we retrieve it from the URL. If the URL contains 
-// /leagues/:id, /squad/:leagueId/:userId, or ?league=ID, we use that ID.
-// If there is no clear league, the countdown is not displayed.
+// Selected league: read from route params/query first; fall back to the
+// reactive activeLeagueId that individual pages write when they resolve a league.
 const selectedLeagueId = computed<number | null>(() => {
   const params = route.params as Record<string, string | undefined>;
   const fromParams = params.leagueId ?? params.id;
@@ -106,7 +106,7 @@ const selectedLeagueId = computed<number | null>(() => {
     const n = Number(raw);
     if (!Number.isNaN(n)) return n;
   }
-  return null;
+  return activeLeagueId.value;
 });
 
 const { timeText, label, subtitle } = useMarketCountdown(() => selectedLeagueId.value);
