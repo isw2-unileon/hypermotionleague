@@ -123,7 +123,7 @@
                   <!-- TODO Sprint 2: current matchday not in /api/v1/leagues. -->
                   <span>JOR·{{ liga.matchday }}</span>
                   <span class="liga-meta-dot">·</span>
-                  <span>€{{ liga.budget }}</span>
+                  <span>€{{ liga.userBudget }}</span>
                 </div>
               </div>
 
@@ -217,6 +217,7 @@ interface LeagueView {
   id: number;
   name: string;
   budget: string;
+  userBudget: string;
   seed: number;
   accent: string;
   currentMembers: number;
@@ -267,6 +268,7 @@ const router = useRouter();
 
 const leagues = ref<League[]>([]);
 const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
+const teamBudgetMap = ref<Map<number, number>>(new Map());
 const recentActivity = ref<ActivityItem[]>([]);
 const loading = ref(true);
 const error = ref("");
@@ -321,6 +323,7 @@ const leagueViews = computed<LeagueView[]>(() =>
     id: l.id,
     name: l.name,
     budget: formatBudget(l.budget_per_user),
+    userBudget: formatBudget(teamBudgetMap.value.get(l.id) ?? l.budget_per_user),
     // Stable seed derived from the league id so the avatar pattern is consistent.
     seed: l.id % 5,
     accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
@@ -409,9 +412,10 @@ async function fetchLeagues(): Promise<void> {
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
 
-      const [standingsResults, activityResults] = await Promise.all([
+      const [standingsResults, activityResults, teamResults] = await Promise.all([
         Promise.allSettled(ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`))),
         Promise.allSettled(ids.map(id => api.get<{ data: ActivityEvent[] }>(`/api/v1/leagues/${id}/market/feed`))),
+        Promise.allSettled(ids.map(id => api.get<{ budget: number }>(`/api/v1/leagues/${id}/team`))),
       ]);
 
       const map = new Map<number, StandingsResponse>();
@@ -419,6 +423,12 @@ async function fetchLeagues(): Promise<void> {
         if (result.status === "fulfilled") map.set(ids[i]!, result.value);
       });
       standingsMap.value = map;
+
+      const budgetMap = new Map<number, number>();
+      teamResults.forEach((result, i) => {
+        if (result.status === "fulfilled") budgetMap.set(ids[i]!, result.value.budget);
+      });
+      teamBudgetMap.value = budgetMap;
 
       const allEvents: ActivityEvent[] = activityResults.flatMap(r =>
         r.status === "fulfilled" ? r.value.data : [],
