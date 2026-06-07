@@ -32,13 +32,13 @@
             <div class="info-sub mono">{{ formatBudget(league.budget_per_user) }}</div>
           </div>
           <div class="card info-cell">
-            <div class="info-label mono">MÁNAGERS</div>
+            <div class="info-label mono">USUARIOS</div>
             <div class="info-value display tnum">{{ members.length }}<span class="info-slash">/{{ league.max_members }}</span></div>
             <div class="info-sub mono">plazas ocupadas</div>
           </div>
           <div class="card info-cell">
             <div class="info-label mono">CIERRE MERCADO</div>
-            <div class="info-value display tnum lime">{{ league.market_close_time }}</div>
+            <div class="info-value display tnum lime">{{ formatCloseTime(league.market_close_time) }}</div>
             <div class="info-sub mono">hora diaria</div>
           </div>
         </div>
@@ -223,6 +223,10 @@ function formatBudget(amount: number): string {
 
 function budgetCompact(amount: number): string {
   return `${Math.round(amount / 1_000_000)}M`;
+}
+
+function formatCloseTime(time: string): string {
+  return time.split(".")[0] ?? time;
 }
 
 async function copyCode() {
