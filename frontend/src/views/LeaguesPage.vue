@@ -118,12 +118,12 @@
                 <div class="liga-name">{{ liga.name }}</div>
                 <div class="liga-meta mono">
                   <!-- TODO Sprint 2: members count not in /api/v1/leagues; using max_members. -->
-                  <span>{{ liga.members }} MGRS</span>
+                  <span>{{ liga.currentMembers }}/{{ liga.members }} MGRS</span>
                   <span class="liga-meta-dot">·</span>
                   <!-- TODO Sprint 2: current matchday not in /api/v1/leagues. -->
                   <span>JOR·{{ liga.matchday }}</span>
                   <span class="liga-meta-dot">·</span>
-                  <span>€{{ liga.budget }}</span>
+                  <span>€{{ liga.userBudget }}</span>
                 </div>
               </div>
 
@@ -217,8 +217,10 @@ interface LeagueView {
   id: number;
   name: string;
   budget: string;
+  userBudget: string;
   seed: number;
   accent: string;
+  currentMembers: number;
   members: number;
   matchday: number;
   position: number;
@@ -266,6 +268,7 @@ const router = useRouter();
 
 const leagues = ref<League[]>([]);
 const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
+const teamBudgetMap = ref<Map<number, number>>(new Map());
 const recentActivity = ref<ActivityItem[]>([]);
 const loading = ref(true);
 const error = ref("");
@@ -303,6 +306,13 @@ function mapActivityEvent(e: ActivityEvent): ActivityItem {
 const ACCENTS = ["var(--lime)", "var(--pos-fwd)", "var(--pos-def)", "var(--pos-gk)"];
 
 
+function currentWeekNumber(): number {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86_400_000);
+  return Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
+}
+
 // Format budget_per_user (euros) into the compact "100M" label the design uses.
 function formatBudget(amount: number): string {
   return `${Math.round(amount / 1_000_000)}M`;
@@ -313,13 +323,13 @@ const leagueViews = computed<LeagueView[]>(() =>
     id: l.id,
     name: l.name,
     budget: formatBudget(l.budget_per_user),
+    userBudget: formatBudget(teamBudgetMap.value.get(l.id) ?? l.budget_per_user),
     // Stable seed derived from the league id so the avatar pattern is consistent.
     seed: l.id % 5,
     accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
-    // TODO Sprint 2: real member count needs a dedicated field/endpoint; max_members for now.
+    currentMembers: standingsMap.value.get(l.id)?.rankings.length ?? 0,
     members: l.max_members,
-    // TODO Sprint 2: current matchday number not in /api/v1/leagues.
-    matchday: 32,
+    matchday: currentWeekNumber(),
     // TODO Sprint 2: position/total require a standings call per league.
     position: 0,
     total: l.max_members,
@@ -402,9 +412,10 @@ async function fetchLeagues(): Promise<void> {
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
 
-      const [standingsResults, activityResults] = await Promise.all([
+      const [standingsResults, activityResults, teamResults] = await Promise.all([
         Promise.allSettled(ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`))),
         Promise.allSettled(ids.map(id => api.get<{ data: ActivityEvent[] }>(`/api/v1/leagues/${id}/market/feed`))),
+        Promise.allSettled(ids.map(id => api.get<{ budget: number }>(`/api/v1/leagues/${id}/team`))),
       ]);
 
       const map = new Map<number, StandingsResponse>();
@@ -412,6 +423,12 @@ async function fetchLeagues(): Promise<void> {
         if (result.status === "fulfilled") map.set(ids[i]!, result.value);
       });
       standingsMap.value = map;
+
+      const budgetMap = new Map<number, number>();
+      teamResults.forEach((result, i) => {
+        if (result.status === "fulfilled") budgetMap.set(ids[i]!, result.value.budget);
+      });
+      teamBudgetMap.value = budgetMap;
 
       const allEvents: ActivityEvent[] = activityResults.flatMap(r =>
         r.status === "fulfilled" ? r.value.data : [],
