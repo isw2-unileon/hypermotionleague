@@ -33,6 +33,7 @@ linters:
       - path: "_test\\.go$"
         linters:
           - gosec
+          - unparam
 
 issues:
   max-same-issues: 0
