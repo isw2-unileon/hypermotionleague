@@ -198,6 +198,7 @@ import LeagueAvatar from "@/design-system/primitives/LeagueAvatar.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
+import { activeLeagueId } from "@/lib/activeLeague";
 
 // Backend shape returned by GET /api/v1/leagues (mirrors models.League).
 // UI-only fields are layered on top as a computed view-model (LeagueView),
@@ -425,6 +426,10 @@ async function fetchLeagues(): Promise<void> {
   error.value = "";
   try {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
+    // Publish the first league so the AppShell market countdown has one to
+    // resolve on /leagues (this route has no :id/?league, so without this it
+    // stays null and the countdown shows "--:--:--").
+    activeLeagueId.value = leagues.value[0]?.id ?? null;
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
 
