@@ -303,11 +303,11 @@ const filteredListings = computed(() => {
 const mercadoCount = computed(() => listings.value.length);
 const activeBidCount = computed(() => bids.value.length);
 
-// Banner countdown: use the real closes_at from market status endpoint.
-// Falls back to the soonest-closing listing if status is unavailable.
+// Banner countdown: while the market is open, next_change_at is the upcoming
+// close time. Falls back to the soonest-closing listing if status is unavailable.
 const nextCloseMs = computed(() => {
-  if (marketStatus.value?.closes_at) {
-    const ms = msUntil(marketStatus.value.closes_at, now.value);
+  if (marketStatus.value?.is_open && marketStatus.value.next_change_at) {
+    const ms = msUntil(marketStatus.value.next_change_at, now.value);
     if (ms > 0) return ms;
   }
   let best = Number.POSITIVE_INFINITY;

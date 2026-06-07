@@ -76,6 +76,7 @@ import TabBar from "./primitives/TabBar.vue";
 import MarketCountdown from "./MarketCountDown.vue";
 import { useMarketCountdown } from "@/composables/useMarketCountdown";
 import { activeLeagueId } from "@/lib/activeLeague";
+import { logout } from "@/lib/auth";
 
 
 
@@ -137,12 +138,11 @@ function onTabSelect(id: NavId): void {
 }
 
 
-// No dedicated auth store: the app's JWT lives in localStorage["token"]
-// (see lib/api.ts, which clears it the same way on a 401). Logout drops the
-// token and returns the user to the auth screen.
+// Delegates to the shared logout() (lib/auth.ts): it clears the JWT from
+// localStorage, signs out of Supabase so an OAuth login leaves no dangling
+// provider session, and returns the user to the auth screen.
 function onLogout(): void {
-  localStorage.removeItem("token");
-  router.push("/auth");
+  void logout();
 }
 </script>
 

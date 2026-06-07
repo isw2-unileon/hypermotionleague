@@ -14,6 +14,13 @@ import (
 // domain, Vercel preview deployments (wildcard), and local dev.
 const defaultCORSOrigins = "https://hypermotionleague.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:3000"
 
+// minJWTSecretLen is the minimum accepted length (in bytes) for JWT_SECRET.
+// HS256 derives the signing key directly from this secret, so a short or
+// low-entropy value can be brute-forced offline — which would let an attacker
+// forge tokens for any user. We fail fast on anything weaker. Generate a strong
+// value with: openssl rand -hex 32 (64 hex chars).
+const minJWTSecretLen = 32
+
 // Config holds the application configuration loaded from environment variables.
 type Config struct {
 	Port             string
@@ -52,8 +59,8 @@ func (c DBConfig) ConnString() string {
 
 // Load reads configuration from environment variables with sensible defaults.
 // It automatically loads .env if present, and returns an error if any required
-// setting is missing — booting with an empty JWT_SECRET would let the server
-// sign tokens with "" and make forgery trivial, so we fail fast instead.
+// setting is missing or too weak — booting with an empty or short JWT_SECRET
+// would make token forgery trivial, so we fail fast instead.
 func Load() (*Config, error) {
 	_ = godotenv.Load() // silent fail if .env not found (e.g. in production)
 
@@ -82,8 +89,8 @@ func Load() (*Config, error) {
 		},
 	}
 
-	if cfg.JWTSecret == "" {
-		return nil, fmt.Errorf("JWT_SECRET must be set and non-empty")
+	if len(cfg.JWTSecret) < minJWTSecretLen {
+		return nil, fmt.Errorf("JWT_SECRET must be set and at least %d characters (generate one with `openssl rand -hex 32`)", minJWTSecretLen)
 	}
 
 	return cfg, nil
