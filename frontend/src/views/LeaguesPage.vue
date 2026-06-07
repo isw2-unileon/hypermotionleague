@@ -118,7 +118,7 @@
                 <div class="liga-name">{{ liga.name }}</div>
                 <div class="liga-meta mono">
                   <!-- TODO Sprint 2: members count not in /api/v1/leagues; using max_members. -->
-                  <span>{{ liga.members }} MGRS</span>
+                  <span>{{ liga.currentMembers }}/{{ liga.members }} MGRS</span>
                   <span class="liga-meta-dot">·</span>
                   <!-- TODO Sprint 2: current matchday not in /api/v1/leagues. -->
                   <span>JOR·{{ liga.matchday }}</span>
@@ -219,6 +219,7 @@ interface LeagueView {
   budget: string;
   seed: number;
   accent: string;
+  currentMembers: number;
   members: number;
   matchday: number;
   position: number;
@@ -316,7 +317,7 @@ const leagueViews = computed<LeagueView[]>(() =>
     // Stable seed derived from the league id so the avatar pattern is consistent.
     seed: l.id % 5,
     accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
-    // TODO Sprint 2: real member count needs a dedicated field/endpoint; max_members for now.
+    currentMembers: standingsMap.value.get(l.id)?.rankings.length ?? 0,
     members: l.max_members,
     // TODO Sprint 2: current matchday number not in /api/v1/leagues.
     matchday: 32,
