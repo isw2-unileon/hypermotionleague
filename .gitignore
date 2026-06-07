@@ -38,11 +38,6 @@ coverage/
 playwright-report/
 test-results/
 
-# Compiled Go binaries (should never be committed)
-/main
-/server
-/ingest
-
 # UI
 frontend/design-prototypes
 frontend/prototypes

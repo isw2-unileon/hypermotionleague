@@ -197,7 +197,9 @@ import Avatar from "@/design-system/primitives/Avatar.vue";
 import LeagueAvatar from "@/design-system/primitives/LeagueAvatar.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
+import type { MarketStatus, ApiEnvelope } from "@/lib/market";
 import { currentUserId } from "@/lib/auth";
+import { activeLeagueId } from "@/lib/activeLeague";
 
 // Backend shape returned by GET /api/v1/leagues (mirrors models.League).
 // UI-only fields are layered on top as a computed view-model (LeagueView),
@@ -407,23 +409,15 @@ function updateIsMobile(): void {
   isMobile.value = window.innerWidth < 768;
 }
 
-interface MarketStatusResponse {
-  status: string;
-  data: {
-    league_id: number;
-    is_open: boolean;
-    closes_at: string;
-    active_listings: number;
-    your_active_bids: number;
-    max_bids_per_user: number;
-  } | null;
-}
-
 async function fetchLeagues(): Promise<void> {
   loading.value = true;
   error.value = "";
   try {
     leagues.value = await api.get<League[]>("/api/v1/leagues");
+    // Publish the first league so the AppShell market countdown has one to
+    // resolve on /leagues (this route has no :id/?league, so without this it
+    // stays null and the countdown shows "--:--:--").
+    activeLeagueId.value = leagues.value[0]?.id ?? null;
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
 
@@ -463,12 +457,14 @@ async function fetchLeagues(): Promise<void> {
 
 async function fetchMarketStatus(leagueId: number): Promise<void> {
   try {
-    const res = await api.get<MarketStatusResponse>(`/api/v1/leagues/${leagueId}/market/status`);
+    const res = await api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${leagueId}/market/status`);
     if (res.data) {
       userActiveBids.value = res.data.your_active_bids;
       maxBidsPerUser.value = res.data.max_bids_per_user;
-      marketClosesAt.value = res.data.closes_at;
       marketIsOpen.value = res.data.is_open;
+      // next_change_at is the close time only while the market is open; when
+      // closed it is the next OPEN time, so we don't show it as a close countdown.
+      marketClosesAt.value = res.data.is_open ? res.data.next_change_at : null;
     }
   } catch {
     // non-blocking — stats card will show defaults

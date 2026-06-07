@@ -61,10 +61,19 @@ export interface BidWithDetails extends Bid {
   player: Player;
 }
 
+// Why the market window is in its current state. Mirrors models.MarketStatus
+// Reason values produced by the market window rule (market/window.go).
+export type MarketReason = "open" | "outside_window" | "active_matchday";
+
+// Mirrors backend models.MarketStatus (see market_handler.go GetMarketStatus).
+// `next_change_at` is the ISO timestamp when the trading window next flips: the
+// upcoming CLOSE time while the market is open, the next OPEN time while closed.
+// (There is no `closes_at` field — the backend only ever sends next_change_at.)
 export interface MarketStatus {
   league_id: number;
   is_open: boolean;
-  closes_at: string;
+  next_change_at: string;
+  reason: MarketReason;
   active_listings: number;
   your_active_bids: number;
   max_bids_per_user: number;

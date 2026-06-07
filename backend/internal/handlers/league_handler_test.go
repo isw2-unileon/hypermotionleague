@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -23,6 +24,9 @@ type mockLeagueRepoForCreate struct {
 	getMemberErr    error
 	countMembers    int
 	countMembersErr error
+
+	getByIDResult             *models.League
+	getMembersWithUsersResult []models.LeagueMemberWithUser
 
 	mu             sync.Mutex
 	createdLeagues []*models.League
@@ -63,7 +67,7 @@ func (m *mockLeagueRepoForCreate) CountMembers(_ context.Context, _ int64) (int,
 }
 
 func (m *mockLeagueRepoForCreate) GetByID(_ context.Context, _ int64) (*models.League, error) {
-	return nil, nil
+	return m.getByIDResult, nil
 }
 
 func (m *mockLeagueRepoForCreate) GetByUserID(_ context.Context, _ int64) ([]models.League, error) {
@@ -76,7 +80,7 @@ func (m *mockLeagueRepoForCreate) GetMembers(_ context.Context, _ int64) ([]mode
 }
 
 func (m *mockLeagueRepoForCreate) GetMembersWithUsers(_ context.Context, _ int64) ([]models.LeagueMemberWithUser, error) {
-	return nil, nil
+	return m.getMembersWithUsersResult, nil
 }
 
 func (m *mockLeagueRepoForCreate) UpdateMemberBudget(_ context.Context, _, _ int64, _ int) error {
@@ -290,5 +294,86 @@ func TestLeagueHandler_JoinLeague_LeagueFull_NoDraft(t *testing.T) {
 	}
 	if teamRepo.callsCount() != 0 {
 		t.Errorf("no debería haber draft, pero hubo %d llamadas", teamRepo.callsCount())
+	}
+}
+
+// newLeagueReadRouter wires the read endpoints (GetByID, GetMembers) with an
+// authenticated caller, for the object-level authorization regression tests.
+func newLeagueReadRouter(t *testing.T, userID int64) (*gin.Engine, *mockLeagueRepoForCreate) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+
+	leagueRepo := &mockLeagueRepoForCreate{}
+	h := NewLeagueHandler(leagueRepo, &mockTeamRepoForDraft{}, nil, nil, nil)
+
+	r := gin.New()
+	r.Use(func(c *gin.Context) {
+		c.Set("userID", userID)
+		c.Next()
+	})
+	r.GET("/api/v1/leagues/:id", h.GetByID)
+	r.GET("/api/v1/leagues/:id/members", h.GetMembers)
+	return r, leagueRepo
+}
+
+// C1: a non-member must be rejected with 403, and the invite_code must NOT leak.
+func TestLeagueHandler_GetByID_NonMember_Forbidden(t *testing.T) {
+	router, repo := newLeagueReadRouter(t, 7)
+	repo.getMemberResult = nil // caller is not a member of this league
+	repo.getByIDResult = &models.League{ID: 1, Name: "Liga ajena", InviteCode: "s3cr3t"}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/leagues/1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("esperaba 403 para no-miembro, obtuve %d (body=%s)", w.Code, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "s3cr3t") {
+		t.Fatalf("el invite_code no debe filtrarse a un no-miembro: %s", w.Body.String())
+	}
+}
+
+func TestLeagueHandler_GetByID_Member_OK(t *testing.T) {
+	router, repo := newLeagueReadRouter(t, 7)
+	repo.getMemberResult = &models.LeagueMember{LeagueID: 1, UserID: 7}
+	repo.getByIDResult = &models.League{ID: 1, Name: "Mi liga", InviteCode: "abc123"}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/leagues/1", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 para miembro, obtuve %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+// A1: the roster is only readable by members.
+func TestLeagueHandler_GetMembers_NonMember_Forbidden(t *testing.T) {
+	router, repo := newLeagueReadRouter(t, 7)
+	repo.getMemberResult = nil
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/leagues/1/members", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("esperaba 403 para no-miembro, obtuve %d (body=%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestLeagueHandler_GetMembers_Member_OK(t *testing.T) {
+	router, repo := newLeagueReadRouter(t, 7)
+	repo.getMemberResult = &models.LeagueMember{LeagueID: 1, UserID: 7}
+	repo.getMembersWithUsersResult = []models.LeagueMemberWithUser{
+		{LeagueMember: models.LeagueMember{LeagueID: 1, UserID: 7}, Username: "u7"},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/leagues/1/members", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("esperaba 200 para miembro, obtuve %d (body=%s)", w.Code, w.Body.String())
 	}
 }
