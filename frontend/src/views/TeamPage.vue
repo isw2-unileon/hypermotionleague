@@ -69,7 +69,7 @@
                     :size="48"
                   />
                   <span class="pos pos-fwd">DEL</span>
-                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                  <span class="slot-name mono">{{ slot.player.first_name.charAt(0) }}. {{ slot.player.last_name }}</span>
                 </template>
                 <div v-else class="slot-empty">
                   <span class="pos pos-fwd">DEL</span>
@@ -92,7 +92,7 @@
                     :size="48"
                   />
                   <span class="pos pos-mid">MED</span>
-                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                  <span class="slot-name mono">{{ slot.player.first_name.charAt(0) }}. {{ slot.player.last_name }}</span>
                 </template>
                 <div v-else class="slot-empty">
                   <span class="pos pos-mid">MED</span>
@@ -115,7 +115,7 @@
                     :size="48"
                   />
                   <span class="pos pos-def">DEF</span>
-                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                  <span class="slot-name mono">{{ slot.player.first_name.charAt(0) }}. {{ slot.player.last_name }}</span>
                 </template>
                 <div v-else class="slot-empty">
                   <span class="pos pos-def">DEF</span>
@@ -138,7 +138,7 @@
                     :size="48"
                   />
                   <span class="pos pos-gk">POR</span>
-                  <span class="slot-name mono">{{ slot.player.last_name }}</span>
+                  <span class="slot-name mono">{{ slot.player.first_name.charAt(0) }}. {{ slot.player.last_name }}</span>
                 </template>
                 <div v-else class="slot-empty">
                   <span class="pos pos-gk">POR</span>
@@ -662,15 +662,14 @@ onMounted(async () => {
 }
 
 .slot-name {
-  font-size: 9px;
-  letter-spacing: 0.06em;
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-100);
-  max-width: 52px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 70px;
   text-align: center;
+  line-height: 1.2;
+  word-break: break-word;
 }
 
 /* ── Empty slot ── */
