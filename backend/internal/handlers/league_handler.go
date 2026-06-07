@@ -1,27 +1,109 @@
 package handlers
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
+	mrand "math/rand"
 	"net/http"
+	"os"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/market"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
-// LeagueHandler handles HTTP requests for leagues
-type LeagueHandler struct {
-	repo       repository.LeagueRepository
-	teams      repository.TeamRepository
-	marketRepo *postgres.MarketRepo // for logging activity events
+var leagueLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+// matchdayLister is the slice of the matchday repo the league handler needs to
+// evaluate the market window for a league (its matchdays). Satisfied by
+// *postgres.MatchdayRepo.
+type matchdayLister interface {
+	GetByLeague(ctx context.Context, leagueID int64) ([]models.Matchday, error)
 }
 
-// NewLeagueHandler creates a new instance of the handler
-func NewLeagueHandler(repo repository.LeagueRepository, teams repository.TeamRepository, marketRepo *postgres.MarketRepo) *LeagueHandler {
-	return &LeagueHandler{repo: repo, teams: teams, marketRepo: marketRepo}
+// LeagueHandler handles HTTP requests for leagues
+type LeagueHandler struct {
+	repo  repository.LeagueRepository
+	teams repository.TeamRepository
+
+	// Market-seeding collaborators. When all are non-nil, creating a league
+	// while the market is open immediately stocks its market (see seedMarketIfOpen).
+	// They are optional so the handler can be built without them (e.g. in tests).
+	marketStore market.ListingStore
+	players     market.FreeAgentSource
+	matchdays   matchdayLister
+	loc         *time.Location
+
+	marketRepo *postgres.MarketRepo // for activity event logging (join/leave)
+}
+
+// NewLeagueHandler creates a new instance of the handler. The market-seeding
+// collaborators (marketStore, players, matchdays) may be nil to disable the
+// on-create market seeding. The Europe/Madrid location is loaded once (falling
+// back to UTC if the embedded tz data is unavailable).
+func NewLeagueHandler(
+	repo repository.LeagueRepository,
+	teams repository.TeamRepository,
+	marketStore market.ListingStore,
+	players market.FreeAgentSource,
+	matchdays matchdayLister,
+) *LeagueHandler {
+	loc, err := market.Location()
+	if err != nil {
+		loc = time.UTC
+	}
+	h := &LeagueHandler{
+		repo:        repo,
+		teams:       teams,
+		marketStore: marketStore,
+		players:     players,
+		matchdays:   matchdays,
+		loc:         loc,
+	}
+	if r, ok := marketStore.(*postgres.MarketRepo); ok {
+		h.marketRepo = r
+	}
+	return h
+}
+
+// seedMarketIfOpen stocks a freshly created league's market if the trading
+// window is open right now (Sprint 3 1.A rule). A new league usually has no
+// matchdays, so "open" then depends only on the 19:00–00:00 Europe/Madrid
+// window. It is best-effort: it never returns an error and must never block or
+// undo league creation — if the market is closed or seeding fails, the daily
+// cron will stock the league later.
+func (h *LeagueHandler) seedMarketIfOpen(ctx context.Context, leagueID int64) {
+	if h.marketStore == nil || h.players == nil || h.matchdays == nil {
+		return // market seeding not wired (e.g. in unit tests)
+	}
+
+	matchdays, err := h.matchdays.GetByLeague(ctx, leagueID)
+	if err != nil {
+		leagueLogger.Warn("market seed: could not load matchdays; skipping",
+			"league_id", leagueID, "error", err)
+		return
+	}
+
+	if w := market.ComputeWindow(time.Now(), h.loc, matchdays); !w.IsOpen {
+		return // market closed now → the daily cron will populate it
+	}
+
+	// #nosec G404 -- el mercado no necesita aleatoriedad criptográfica.
+	rng := mrand.New(mrand.NewSource(time.Now().UnixNano()))
+	created, _, err := market.RefreshLeague(
+		ctx, h.marketStore, h.players, leagueID, market.DefaultTarget, time.Now().Add(market.ListingTTL), rng)
+	if err != nil {
+		leagueLogger.Warn("market seed failed; league created without market (cron will fill it)",
+			"league_id", leagueID, "error", err)
+		return
+	}
+	leagueLogger.Info("seeded new league market", "league_id", leagueID, "created", created)
 }
 
 func (h *LeagueHandler) Create(c *gin.Context) {
@@ -87,6 +169,11 @@ func (h *LeagueHandler) Create(c *gin.Context) {
 	// Draft the owner's initial squad (best-effort: an empty player pool
 	// must not prevent league creation — e.g. in test/CI environments).
 	_ = h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID)
+
+	// If the market is open right now, stock the new league's market immediately
+	// so it is not empty until the daily cron. Best-effort: never blocks or
+	// undoes league creation (see seedMarketIfOpen).
+	h.seedMarketIfOpen(c.Request.Context(), league.ID)
 
 	c.JSON(http.StatusCreated, league)
 }

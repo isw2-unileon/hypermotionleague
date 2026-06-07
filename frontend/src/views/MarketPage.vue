@@ -24,7 +24,10 @@
           <div class="saldo">
             <div class="mono col-label">DISPONIBLE</div>
             <div class="display tnum saldo-value">{{ millions(available) }}</div>
-            <div v-if="committed > 0" class="mono saldo-committed">{{ millions(committed) }} en pujas</div>
+            <div class="mono saldo-sub">
+              <template v-if="committed > 0">{{ millions(committed) }} comprometido · {{ millions(balance) }} total</template>
+              <template v-else>{{ millions(balance) }} total</template>
+            </div>
           </div>
           <div v-if="!isMobile && nextCloseLabel" class="card cierra-card">
             <span class="pulse"></span>
@@ -563,10 +566,10 @@ onUnmounted(() => {
   color: var(--lime);
   margin-top: 2px;
 }
-.saldo-committed {
+.saldo-sub {
   font-size: 9px;
   letter-spacing: 0.1em;
-  color: var(--pos-fwd);
+  color: var(--ink-400);
   margin-top: 2px;
 }
 .cierra-card {
