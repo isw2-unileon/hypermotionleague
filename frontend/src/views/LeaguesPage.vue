@@ -127,12 +127,12 @@
                 </div>
               </div>
 
-              <!-- TODO Sprint 2: position/total need a standings call per league. -->
+              <!-- Active bids in this league / max possible (members × 5 bids each). -->
               <div class="liga-pos">
-                <span class="liga-pos-num display tnum" :class="{ lime: liga.position <= 3 }">
-                  {{ liga.position.toString().padStart(2, "0") }}
+                <span class="liga-pos-num display tnum" :class="{ lime: liga.activeBids > 0 }">
+                  {{ liga.activeBids.toString().padStart(2, "0") }}
                 </span>
-                <span class="liga-pos-total mono">/{{ liga.total }}</span>
+                <span class="liga-pos-total mono">/{{ liga.maxBids }}</span>
               </div>
 
               <svg class="liga-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -197,7 +197,8 @@ import Avatar from "@/design-system/primitives/Avatar.vue";
 import LeagueAvatar from "@/design-system/primitives/LeagueAvatar.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 import api from "@/lib/api";
-import type { MarketStatus, ApiEnvelope } from "@/lib/market";
+import type { MarketStatus, ApiEnvelope, MarketListingWithDetails } from "@/lib/market";
+import { MAX_ACTIVE_BIDS } from "@/lib/market";
 import { currentUserId } from "@/lib/auth";
 import { activeLeagueId } from "@/lib/activeLeague";
 
@@ -225,8 +226,8 @@ interface LeagueView {
   currentMembers: number;
   members: number;
   matchday: number;
-  position: number;
-  total: number;
+  activeBids: number;
+  maxBids: number;
   hot: boolean;
 }
 
@@ -272,6 +273,8 @@ const router = useRouter();
 const leagues = ref<League[]>([]);
 const standingsMap = ref<Map<number, StandingsResponse>>(new Map());
 const teamBudgetMap = ref<Map<number, number>>(new Map());
+// leagueId -> total active bids in that league (sum of bid_count across listings).
+const bidsMap = ref<Map<number, number>>(new Map());
 const recentActivity = ref<ActivityItem[]>([]);
 const loading = ref(true);
 const error = ref("");
@@ -337,23 +340,26 @@ function formatBudget(amount: number): string {
 }
 
 const leagueViews = computed<LeagueView[]>(() =>
-  leagues.value.map((l, index) => ({
-    id: l.id,
-    name: l.name,
-    budget: formatBudget(l.budget_per_user),
-    userBudget: formatBudget(teamBudgetMap.value.get(l.id) ?? l.budget_per_user),
-    // Stable seed derived from the league id so the avatar pattern is consistent.
-    seed: l.id % 5,
-    accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
-    currentMembers: standingsMap.value.get(l.id)?.rankings.length ?? 0,
-    members: l.max_members,
-    matchday: currentWeekNumber(),
-    // TODO Sprint 2: position/total require a standings call per league.
-    position: 0,
-    total: l.max_members,
-    // TODO: gate on league.hasActiveBids once the backend exposes it.
-    hot: false,
-  })),
+  leagues.value.map((l, index) => {
+    const currentMembers = standingsMap.value.get(l.id)?.rankings.length ?? 0;
+    return {
+      id: l.id,
+      name: l.name,
+      budget: formatBudget(l.budget_per_user),
+      userBudget: formatBudget(teamBudgetMap.value.get(l.id) ?? l.budget_per_user),
+      // Stable seed derived from the league id so the avatar pattern is consistent.
+      seed: l.id % 5,
+      accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
+      currentMembers,
+      members: l.max_members,
+      matchday: currentWeekNumber(),
+      // Active bids in this league vs the max possible (members × bids/user).
+      activeBids: bidsMap.value.get(l.id) ?? 0,
+      maxBids: currentMembers * MAX_ACTIVE_BIDS,
+      // TODO: gate on league.hasActiveBids once the backend exposes it.
+      hot: false,
+    };
+  }),
 );
 
 const marketCloseLabel = computed(() => {
@@ -421,10 +427,11 @@ async function fetchLeagues(): Promise<void> {
     if (leagues.value.length > 0) {
       const ids = leagues.value.map(l => l.id);
 
-      const [standingsResults, activityResults, teamResults] = await Promise.all([
+      const [standingsResults, activityResults, teamResults, listingsResults] = await Promise.all([
         Promise.allSettled(ids.map(id => api.get<StandingsResponse>(`/api/v1/leagues/${id}/standings`))),
         Promise.allSettled(ids.map(id => api.get<{ data: ActivityEvent[] }>(`/api/v1/leagues/${id}/market/feed`))),
         Promise.allSettled(ids.map(id => api.get<{ budget: number }>(`/api/v1/leagues/${id}/team`))),
+        Promise.allSettled(ids.map(id => api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`))),
       ]);
 
       const map = new Map<number, StandingsResponse>();
@@ -432,6 +439,16 @@ async function fetchLeagues(): Promise<void> {
         if (result.status === "fulfilled") map.set(ids[i]!, result.value);
       });
       standingsMap.value = map;
+
+      // Total active bids per league = sum of bid_count across its active listings.
+      const bids = new Map<number, number>();
+      listingsResults.forEach((result, i) => {
+        if (result.status === "fulfilled") {
+          const total = (result.value.data ?? []).reduce((sum, listing) => sum + listing.bid_count, 0);
+          bids.set(ids[i]!, total);
+        }
+      });
+      bidsMap.value = bids;
 
       const budgetMap = new Map<number, number>();
       teamResults.forEach((result, i) => {
