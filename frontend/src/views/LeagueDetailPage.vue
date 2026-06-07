@@ -93,6 +93,29 @@
               </div>
 
               <span class="member-role mono">{{ member.role }}</span>
+
+              <template v-if="isOwner && member.role !== 'owner'">
+                <button
+                  v-if="confirmKickId !== member.user_id"
+                  class="btn btn-ghost kick-btn mono"
+                  :disabled="kickingId === member.user_id"
+                  @click="confirmKickId = member.user_id"
+                >
+                  Expulsar
+                </button>
+                <div v-else class="kick-confirm">
+                  <button
+                    class="btn kick-confirm-btn mono"
+                    :disabled="kickingId === member.user_id"
+                    @click="kickMember(member.user_id)"
+                  >
+                    {{ kickingId === member.user_id ? '…' : 'Confirmar' }}
+                  </button>
+                  <button class="btn btn-secondary mono" @click="confirmKickId = null">
+                    Cancelar
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
         </section>
@@ -177,6 +200,8 @@ const error = ref("");
 const copied = ref(false);
 const confirmDelete = ref(false);
 const deleting = ref(false);
+const kickingId = ref<number | null>(null);
+const confirmKickId = ref<number | null>(null);
 
 // Current user comes from the existing auth helper (decodes the JWT).
 const meId = currentUserId();
@@ -234,6 +259,19 @@ async function copyCode() {
   await navigator.clipboard.writeText(league.value.invite_code);
   copied.value = true;
   setTimeout(() => (copied.value = false), 2000);
+}
+
+async function kickMember(userId: number) {
+  kickingId.value = userId;
+  try {
+    await api.delete(`/api/v1/leagues/${route.params.id}/members/${userId}`);
+    members.value = members.value.filter(m => m.user_id !== userId);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : "Error al expulsar al miembro";
+  } finally {
+    kickingId.value = null;
+    confirmKickId.value = null;
+  }
 }
 
 async function deleteLeague() {
@@ -458,6 +496,27 @@ onMounted(async () => {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-400);
+}
+
+.kick-btn {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--pos-fwd);
+  border-color: var(--pos-fwd);
+  padding: 2px 10px;
+}
+
+.kick-confirm {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.kick-confirm-btn {
+  font-size: 11px;
+  background: var(--pos-fwd);
+  color: var(--ink-900);
+  padding: 2px 10px;
 }
 
 /* Danger */

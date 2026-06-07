@@ -253,6 +253,52 @@ func (h *LeagueHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// KickMember removes a member from a league (owner only, cannot kick yourself).
+func (h *LeagueHandler) KickMember(c *gin.Context) {
+	callerID := c.GetInt64("userID")
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	targetID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	league, err := h.repo.GetByID(c.Request.Context(), leagueID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno"})
+		return
+	}
+	if league == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Liga no encontrada"})
+		return
+	}
+	if league.CreatedBy != callerID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Solo el propietario puede expulsar miembros"})
+		return
+	}
+	if targetID == callerID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No puedes expulsarte a ti mismo"})
+		return
+	}
+
+	if err := h.repo.RemoveMember(c.Request.Context(), leagueID, targetID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo expulsar al miembro"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
 func generateInviteCode() (string, error) {
 	b := make([]byte, 4)
 	if _, err := rand.Read(b); err != nil {
