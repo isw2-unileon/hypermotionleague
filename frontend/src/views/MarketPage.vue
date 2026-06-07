@@ -64,7 +64,7 @@
         <span class="closed-icon">🔒</span>
         <div>
           <div class="mono closed-label">MERCADO CERRADO</div>
-          <div class="mono closed-sub">No se pueden realizar pujas en este momento.</div>
+          <div class="mono closed-sub">No se crearán nuevas ofertas hasta las 19:00 · Las subastas activas siguen abiertas 24h.</div>
         </div>
       </div>
 
@@ -401,7 +401,10 @@ async function refresh(): Promise<void> {
 // ── actions ──────────────────────────────────────────────────────────────────
 
 function openBid(listing: MarketListingWithDetails): void {
-  if (!marketOpen.value) return; // market is closed — ignore bid attempts
+  // Allow bidding as long as the listing has not expired — independent of the
+  // market trading window. The window only gates new-listing creation (the daily
+  // refresh), not existing 24-hour auctions.
+  if (msUntil(listing.expires_at, now.value) <= 0) return;
   // If the user already holds an active bid on this listing, open in raise mode
   // (cancel-then-place) instead of stacking a duplicate bid.
   const existing = myBidByListing.value.get(listing.id);
