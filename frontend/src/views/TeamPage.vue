@@ -217,6 +217,7 @@ import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
 import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
 import AppShell from '@/design-system/AppShell.vue';
+import { activeLeagueId } from "@/lib/activeLeague";
 
 // Types
 
@@ -491,6 +492,7 @@ async function saveLineup() {
 
 async function onLeagueChange() {
   if (!selectedLeagueId.value) return;
+  activeLeagueId.value = Number(selectedLeagueId.value);
   lineup.value = null;
   squadPlayers.value = [];
   currentMatchday.value = null;
@@ -541,6 +543,7 @@ onMounted(async () => {
     leagues.value = await api.get<League[]>('/api/v1/leagues');
     if (leagues.value.length === 1) {
       selectedLeagueId.value = leagues.value[0]!.id;
+      activeLeagueId.value = leagues.value[0]!.id;
       await onLeagueChange();
     }
   } catch {

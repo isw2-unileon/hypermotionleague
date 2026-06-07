@@ -95,6 +95,7 @@ import type { StandingsRow as StandingsRowData } from "@/types/standings";
 import { currentUserId } from "@/lib/auth";
 import api from "@/lib/api";
 import { lastStandingsLeagueId } from "@/lib/standings-memory";
+import { activeLeagueId } from "@/lib/activeLeague";
 
 interface League {
   id: number;
@@ -210,6 +211,7 @@ onMounted(async () => {
   if (resolvedId !== null) {
     selectedLeagueId.value = resolvedId;
     lastStandingsLeagueId.value = resolvedId;
+    activeLeagueId.value = resolvedId;
     await fetchMatchdays();
     if (queryMatchday !== undefined && queryMatchday !== null && queryMatchday !== "") {
       const num = Number(queryMatchday);
@@ -235,6 +237,7 @@ watch([selectedLeagueId, selectedMatchdayNumber], ([leagueId, matchday]) => {
 async function onLeagueChange() {
   if (!selectedLeagueId.value) return;
   lastStandingsLeagueId.value = selectedLeagueId.value as number;
+  activeLeagueId.value = selectedLeagueId.value as number;
   selectedMatchdayNumber.value = null;
   matchdays.value = [];
   standings.value = null;

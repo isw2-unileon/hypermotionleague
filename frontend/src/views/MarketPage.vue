@@ -199,6 +199,7 @@ import { useRoute, useRouter } from "vue-router";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
 import AppShell from "@/design-system/AppShell.vue";
+import { activeLeagueId } from "@/lib/activeLeague";
 import PlayerPhoto from "@/design-system/primitives/PlayerPhoto.vue";
 import TeamCrest from "@/design-system/primitives/TeamCrest.vue";
 import PlayerCard from "@/design-system/components/PlayerCard.vue";
@@ -452,6 +453,7 @@ async function onLeagueChange(e: Event): Promise<void> {
   const value = Number((e.target as HTMLSelectElement).value);
   if (Number.isNaN(value) || value === leagueId.value) return;
   leagueId.value = value;
+  activeLeagueId.value = value;
   await router.replace({ query: { ...route.query, league: String(value) } });
   loading.value = true;
   error.value = "";
@@ -480,6 +482,7 @@ onMounted(async () => {
     leagues.value = await api.get<LeagueSummary[]>("/api/v1/leagues");
     leagueId.value = resolveLeagueId();
     if (leagueId.value != null) {
+      activeLeagueId.value = leagueId.value;
       await loadMarket(leagueId.value);
     }
   } catch (e) {
