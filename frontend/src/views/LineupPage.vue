@@ -179,8 +179,10 @@ interface LineupWithPlayers {
 const route = useRoute();
 const router = useRouter();
 
-const leagueId = route.params.leagueId as string;
-const matchdayNumber = route.params.matchdayNumber as string;
+const leagueIdRaw = route.params.leagueId as string;
+const matchdayNumberRaw = route.params.matchdayNumber as string;
+const leagueId = Number.isNaN(Number(leagueIdRaw)) ? '' : leagueIdRaw;
+const matchdayNumber = Number.isNaN(Number(matchdayNumberRaw)) ? '' : matchdayNumberRaw;
 
 const players = ref<TeamPlayer[]>([]);
 const matchday = ref<Matchday | null>(null);

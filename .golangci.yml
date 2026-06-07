@@ -4,10 +4,8 @@ run:
   timeout: 5m
 
 # Baseline relaxed to bug-catching / correctness / security linters.
-# Style, duplication and complexity linters (revive, dupl, gocritic, gocyclo,
-# gocognit, funlen, misspell, unconvert, unparam, nolintlint) were dropped on
-# purpose: the strict set had gone unmaintained and red for weeks, drowning
-# real findings. Re-introduce them deliberately if the team wants them back.
+# Style linters (revive, dupl, gocritic, gocyclo, gocognit, funlen, misspell,
+# nolintlint) remain off — re-introduce deliberately if needed.
 linters:
   enable:
     # Error handling
@@ -20,6 +18,10 @@ linters:
     - ineffassign
     - unused
 
+    # Correctness (re-introduced from the dropped set)
+    - unconvert
+    - unparam
+
     # Security
     - gosec
 
@@ -31,6 +33,7 @@ linters:
       - path: "_test\\.go$"
         linters:
           - gosec
+          - unparam
 
 issues:
   max-same-issues: 0

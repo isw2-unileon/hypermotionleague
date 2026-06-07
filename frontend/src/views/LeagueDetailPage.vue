@@ -258,9 +258,14 @@ function budgetCompact(amount: number): string {
 
 async function copyCode() {
   if (!league.value) return;
-  await navigator.clipboard.writeText(league.value.invite_code);
-  copied.value = true;
-  setTimeout(() => (copied.value = false), 2000);
+  try {
+    await navigator.clipboard.writeText(league.value.invite_code);
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 2000);
+  } catch {
+    // Clipboard API may fail on insecure origins or denied permissions.
+    // Fallback: select a hidden input (not implemented) — silently ignore for now.
+  }
 }
 
 async function kickMember(userId: number) {

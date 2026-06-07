@@ -13,7 +13,7 @@
 # build/root context at the repository root.
 
 # ---- builder ----------------------------------------------------------------
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25.3-alpine AS builder
 
 WORKDIR /src
 
@@ -42,5 +42,8 @@ COPY --from=builder /server /server
 # Documentation only — the app binds to $PORT (fallback 8080) at runtime,
 # and Render injects PORT.
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
 
 CMD ["/server"]

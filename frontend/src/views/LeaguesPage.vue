@@ -288,7 +288,7 @@ const marketClosesAt = ref<string | null>(null);
 const marketIsOpen = ref(false);
 
 // TODO Sprint 2: bind to /api/v1/users/me/matchday-points endpoint.
-const matchdayPoints = 87;
+const matchdayPoints = 0;
 
 function timeAgo(isoDate: string): string {
   const diff = Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000);
@@ -351,9 +351,8 @@ const leagueViews = computed<LeagueView[]>(() =>
     // TODO Sprint 2: position/total require a standings call per league.
     position: 0,
     total: l.max_members,
-    // TODO: gate on league.hasActiveBids once the backend exposes it. First
-    // league hardcoded hot for visual reference of the "live bid" treatment.
-    hot: index === 0,
+    // TODO: gate on league.hasActiveBids once the backend exposes it.
+    hot: false,
   })),
 );
 

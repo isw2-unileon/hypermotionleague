@@ -199,8 +199,14 @@ interface UserTeam {
 const route = useRoute();
 const router = useRouter();
 
-const leagueId = computed(() => Number(route.params.leagueId));
-const userId = computed(() => Number(route.params.userId));
+const leagueId = computed(() => {
+  const n = Number(route.params.leagueId);
+  return Number.isNaN(n) ? 0 : n;
+});
+const userId = computed(() => {
+  const n = Number(route.params.userId);
+  return Number.isNaN(n) ? 0 : n;
+});
 
 const matchdays = ref<Matchday[]>([]);
 const selectedMatchdayNumber = ref<number | null>(null);

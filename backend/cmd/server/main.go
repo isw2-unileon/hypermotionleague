@@ -73,7 +73,7 @@ func main() {
 	api.GET("/db-test", func(c *gin.Context) {
 		if err := pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": "database unavailable"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "DB conectada"})

@@ -12,7 +12,7 @@ import (
 // defaultCORSOrigins is the comma-separated allow-list used when neither
 // CORS_ALLOW_ORIGINS nor CORS_ALLOW_ORIGIN is set: the Vercel production
 // domain, Vercel preview deployments (wildcard), and local dev.
-const defaultCORSOrigins = "https://hypermotionleague.vercel.app,https://*.vercel.app,http://localhost:5173,http://localhost:3000"
+const defaultCORSOrigins = "https://hypermotionleague.vercel.app,http://localhost:5173,http://localhost:3000"
 
 // minJWTSecretLen is the minimum accepted length (in bytes) for JWT_SECRET.
 // HS256 derives the signing key directly from this secret, so a short or
@@ -67,7 +67,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:            getEnv("PORT", "8080"),
 		GinMode:         getEnv("GIN_MODE", "debug"),
-		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", "*"),
+		CORSAllowOrigin: getEnv("CORS_ALLOW_ORIGIN", ""),
 		// Prefer the plural CORS_ALLOW_ORIGINS; fall back to the legacy singular
 		// CORS_ALLOW_ORIGIN; if neither is set, use the built-in default list.
 		CORSAllowOrigins: parseCSV(getEnv("CORS_ALLOW_ORIGINS", getEnv("CORS_ALLOW_ORIGIN", defaultCORSOrigins))),

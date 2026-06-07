@@ -25,7 +25,7 @@ func NewAuthHandler(userRepo *postgres.UserRepo, jwtSecret string) *AuthHandler 
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
@@ -37,7 +37,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	if existing != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"error": "registration failed"})
 		return
 	}
 
@@ -78,13 +78,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
 	user, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
-		slog.Error("login: failed to query user", "error", err, "email", req.Email)
+		slog.Error("login: failed to query user", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
