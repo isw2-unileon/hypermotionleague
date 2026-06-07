@@ -217,6 +217,7 @@ import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
 import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
 import AppShell from '@/design-system/AppShell.vue';
+import { teamColor, formatCountdown as sharedFormatCountdown } from '@/lib/market';
 
 // Types
 
@@ -339,15 +340,7 @@ function shortTeam(name: string): string {
   return name.slice(0, 3).toUpperCase();
 }
 
-const TEAM_PALETTE = [
-  '#3B82F6', '#EF4444', '#F59E0B', '#10B981',
-  '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
-];
-function teamColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return TEAM_PALETTE[Math.abs(hash) % TEAM_PALETTE.length] ?? '#3B82F6';
-}
+// teamColor is imported from @/lib/market
 
 function posLabel(pos: PlayerPosition): string {
   return { GK: 'POR', DEF: 'DEF', MID: 'MED', FWD: 'DEL' }[pos];
@@ -377,15 +370,9 @@ function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
     }));
 }
 
-// Countdown
-
+// Countdown — uses shared formatCountdown from @/lib/market (imported as sharedFormatCountdown)
 function formatCountdown(ms: number): string {
-  if (ms <= 0) return '00:00:00';
-  const totalSecs = Math.floor(ms / 1000);
-  const h = Math.floor(totalSecs / 3600);
-  const m = Math.floor((totalSecs % 3600) / 60);
-  const s = totalSecs % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return sharedFormatCountdown(ms) ?? '00:00:00';
 }
 
 function startCountdown() {

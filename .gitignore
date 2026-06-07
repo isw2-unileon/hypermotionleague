@@ -20,7 +20,6 @@ dist/
 # Environment
 .env
 .env.txt
-!.env
 
 # IDE
 .vscode/
@@ -38,7 +37,11 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
-.env
+
+# Compiled Go binaries (should never be committed)
+/main
+/server
+/ingest
 
 # UI
 frontend/design-prototypes

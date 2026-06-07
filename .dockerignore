@@ -13,6 +13,7 @@ README.md
 # Prebuilt local binaries at the repo root (~18MB each) — never needed in the image.
 /main
 /server
+/ingest
 
 # Local env / secrets
 .env

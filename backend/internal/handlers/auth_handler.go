@@ -37,7 +37,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	if existing != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "email already registered"})
+		c.JSON(http.StatusConflict, gin.H{"error": "registration failed"})
 		return
 	}
 
@@ -84,7 +84,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	user, err := h.userRepo.GetByEmail(c.Request.Context(), req.Email)
 	if err != nil {
-		slog.Error("login: failed to query user", "error", err, "email", req.Email)
+		slog.Error("login: failed to query user", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
