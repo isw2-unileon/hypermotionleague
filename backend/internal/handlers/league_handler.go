@@ -9,17 +9,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
 // LeagueHandler handles HTTP requests for leagues
 type LeagueHandler struct {
-	repo  repository.LeagueRepository
-	teams repository.TeamRepository
+	repo       repository.LeagueRepository
+	teams      repository.TeamRepository
+	marketRepo *postgres.MarketRepo // for logging activity events
 }
 
 // NewLeagueHandler creates a new instance of the handler
-func NewLeagueHandler(repo repository.LeagueRepository, teams repository.TeamRepository) *LeagueHandler {
-	return &LeagueHandler{repo: repo, teams: teams}
+func NewLeagueHandler(repo repository.LeagueRepository, teams repository.TeamRepository, marketRepo *postgres.MarketRepo) *LeagueHandler {
+	return &LeagueHandler{repo: repo, teams: teams, marketRepo: marketRepo}
 }
 
 func (h *LeagueHandler) Create(c *gin.Context) {
@@ -192,6 +194,11 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 	// Draft the new member's initial squad (best-effort).
 	_ = h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID)
 
+	// Log activity event
+	if h.marketRepo != nil {
+		_ = h.marketRepo.InsertEvent(c.Request.Context(), league.ID, userID, "join", "", 0, "")
+	}
+
 	c.JSON(http.StatusOK, league)
 }
 
@@ -243,6 +250,11 @@ func (h *LeagueHandler) Delete(c *gin.Context) {
 	if league.CreatedBy != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Solo el creador puede eliminar la liga"})
 		return
+	}
+
+	// Log activity event before deleting (the league still exists at this point)
+	if h.marketRepo != nil {
+		_ = h.marketRepo.InsertEvent(c.Request.Context(), id, userID, "leave", "", 0, "")
 	}
 
 	if err := h.repo.Delete(c.Request.Context(), id); err != nil {

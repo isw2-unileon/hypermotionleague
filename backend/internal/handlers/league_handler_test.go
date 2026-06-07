@@ -132,7 +132,7 @@ func newLeagueRouter(t *testing.T, userID int64) (*gin.Engine, *mockLeagueRepoFo
 
 	leagueRepo := &mockLeagueRepoForCreate{}
 	teamRepo := &mockTeamRepoForDraft{}
-	h := NewLeagueHandler(leagueRepo, teamRepo)
+	h := NewLeagueHandler(leagueRepo, teamRepo, nil)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {

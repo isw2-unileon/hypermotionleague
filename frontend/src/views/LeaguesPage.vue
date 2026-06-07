@@ -257,11 +257,12 @@ interface ActivityItem {
 }
 
 interface ActivityEvent {
-  event_type: "transfer" | "listing";
+  event_type: string;
   occurred_at: string;
   actor: string;
   player_name: string;
   amount: number;
+  details: string;
 }
 
 const router = useRouter();
@@ -296,10 +297,25 @@ function timeAgo(isoDate: string): string {
 }
 
 function mapActivityEvent(e: ActivityEvent): ActivityItem {
-  if (e.event_type === "transfer") {
-    return { actor: e.actor, action: `fichó a ${e.player_name}`, time: timeAgo(e.occurred_at), color: "var(--lime)" };
+  const t = timeAgo(e.occurred_at);
+  switch (e.event_type) {
+    case "join":
+      return { actor: e.actor, action: "se unió a la liga", time: t, color: "var(--lime)" };
+    case "leave":
+      return { actor: e.actor, action: "abandonó la liga", time: t, color: "var(--down)" };
+    case "bid":
+      return { actor: e.actor, action: `pujó por ${e.player_name}`, time: t, color: "var(--pos-fwd)" };
+    case "bid_cancel":
+      return { actor: e.actor, action: "canceló una puja", time: t, color: "var(--ink-300)" };
+    case "bid_raise":
+      return { actor: e.actor, action: `subió puja por ${e.player_name}`, time: t, color: "var(--pos-fwd)" };
+    case "transfer":
+      return { actor: e.actor, action: `fichó a ${e.player_name}`, time: t, color: "var(--lime)" };
+    case "top_scorer":
+      return { actor: e.actor, action: `fue el más puntuado de la jornada`, time: t, color: "var(--pos-gk)" };
+    default:
+      return { actor: e.actor, action: e.details || e.event_type, time: t, color: "var(--ink-300)" };
   }
-  return { actor: e.actor, action: `puso a ${e.player_name} en venta`, time: timeAgo(e.occurred_at), color: "var(--pos-fwd)" };
 }
 
 // Accent palette cycled per league so the same league always looks the same.

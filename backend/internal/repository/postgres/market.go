@@ -360,37 +360,25 @@ func (r *MarketRepo) GetMarketStatus(ctx context.Context, leagueID, userID int64
 	return status, nil
 }
 
-// GetRecentActivity returns the last N market events for a league, combining
-// completed transfers (won bids) and user-initiated listings.
+// InsertEvent logs an activity event for a league.
+func (r *MarketRepo) InsertEvent(ctx context.Context, leagueID, userID int64, eventType, playerName string, amount int, details string) error {
+	query := `
+		INSERT INTO league_events (league_id, user_id, event_type, player_name, amount, details)
+		VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := r.pool.Exec(ctx, query, leagueID, userID, eventType, playerName, amount, details)
+	return err
+}
+
+// GetRecentActivity returns the last N events for a league from league_events.
 func (r *MarketRepo) GetRecentActivity(ctx context.Context, leagueID int64, limit int) ([]models.ActivityEvent, error) {
 	query := `
-		SELECT event_type, occurred_at, actor, player_name, amount FROM (
-			SELECT
-				'transfer'                            AS event_type,
-				b.placed_at                           AS occurred_at,
-				u.display_name                        AS actor,
-				p.first_name || ' ' || p.last_name   AS player_name,
-				b.amount
-			FROM bids b
-			JOIN market_listings ml ON b.listing_id = ml.id
-			JOIN users u            ON b.user_id    = u.id
-			JOIN players p          ON ml.player_id = p.id
-			WHERE ml.league_id = $1 AND b.status = 'won'
-
-			UNION ALL
-
-			SELECT
-				'listing'                             AS event_type,
-				ml.listed_at                          AS occurred_at,
-				u.display_name                        AS actor,
-				p.first_name || ' ' || p.last_name   AS player_name,
-				ml.base_price
-			FROM market_listings ml
-			JOIN users u   ON ml.seller_id  = u.id
-			JOIN players p ON ml.player_id  = p.id
-			WHERE ml.league_id = $1 AND ml.seller_id IS NOT NULL
-		) events
-		ORDER BY occurred_at DESC
+		SELECT le.id, le.league_id, le.user_id, le.event_type,
+		       u.display_name, COALESCE(le.player_name, ''),
+		       COALESCE(le.amount, 0), COALESCE(le.details, ''), le.created_at
+		FROM league_events le
+		JOIN users u ON le.user_id = u.id
+		WHERE le.league_id = $1
+		ORDER BY le.created_at DESC
 		LIMIT $2`
 
 	rows, err := r.pool.Query(ctx, query, leagueID, limit)
@@ -402,7 +390,8 @@ func (r *MarketRepo) GetRecentActivity(ctx context.Context, leagueID int64, limi
 	var events []models.ActivityEvent
 	for rows.Next() {
 		var e models.ActivityEvent
-		if err := rows.Scan(&e.EventType, &e.OccurredAt, &e.Actor, &e.PlayerName, &e.Amount); err != nil {
+		if err := rows.Scan(&e.ID, &e.LeagueID, &e.UserID, &e.EventType,
+			&e.Actor, &e.PlayerName, &e.Amount, &e.Details, &e.OccurredAt); err != nil {
 			return nil, fmt.Errorf("scan activity event: %w", err)
 		}
 		events = append(events, e)
@@ -568,6 +557,20 @@ func (r *MarketRepo) ResolveListingTx(ctx context.Context, listing models.Market
 		return fmt.Errorf("close listing: %w", err)
 	}
 
-	// 5. Commit
+	// 5. Log transfer event if there was a winner
+	if hasBids {
+		// Get player name for the event
+		var playerName string
+		_ = tx.QueryRow(ctx, `
+			SELECT first_name || ' ' || last_name FROM players WHERE id = $1
+		`, listing.PlayerID).Scan(&playerName)
+
+		_, _ = tx.Exec(ctx, `
+			INSERT INTO league_events (league_id, user_id, event_type, player_name, amount)
+			VALUES ($1, $2, 'transfer', $3, $4)
+		`, listing.LeagueID, winnerUserID, playerName, winnerAmount)
+	}
+
+	// 6. Commit
 	return tx.Commit(ctx)
 }
