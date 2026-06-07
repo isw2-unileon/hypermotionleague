@@ -61,11 +61,9 @@
 
       <!-- market closed banner -->
       <div v-if="!loading && !marketOpen && leagueId != null" class="closed-banner card">
-        <span class="closed-icon">🔒</span>
-        <div>
-          <div class="mono closed-label">MERCADO CERRADO</div>
-          <div class="mono closed-sub">No se pueden realizar pujas en este momento.</div>
-        </div>
+        <span class="closed-dot"></span>
+        <span class="mono closed-label">MERCADO CERRADO</span>
+        <span class="mono closed-sub">Subastas activas abiertas · Nuevas ofertas a las 19:00</span>
       </div>
 
       <!-- position filters (mercado tab) -->
@@ -401,7 +399,10 @@ async function refresh(): Promise<void> {
 // ── actions ──────────────────────────────────────────────────────────────────
 
 function openBid(listing: MarketListingWithDetails): void {
-  if (!marketOpen.value) return; // market is closed — ignore bid attempts
+  // Allow bidding as long as the listing has not expired — independent of the
+  // market trading window. The window only gates new-listing creation (the daily
+  // refresh), not existing 24-hour auctions.
+  if (msUntil(listing.expires_at, now.value) <= 0) return;
   // If the user already holds an active bid on this listing, open in raise mode
   // (cancel-then-place) instead of stacking a duplicate bid.
   const existing = myBidByListing.value.get(listing.id);
@@ -658,29 +659,30 @@ onUnmounted(() => {
 
 /* market closed banner */
 .closed-banner {
-  padding: 14px 20px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
-  border-color: var(--down);
-  background: rgba(255, 98, 98, 0.06);
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.closed-icon {
-  font-size: 20px;
+.closed-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--ink-500);
+  border-radius: 50%;
   flex-shrink: 0;
 }
 .closed-label {
-  font-size: 12px;
+  font-size: 10px;
   letter-spacing: 0.15em;
-  color: var(--down);
+  color: var(--ink-300);
   font-weight: 600;
 }
 .closed-sub {
   font-size: 10px;
   letter-spacing: 0.08em;
-  color: var(--ink-300);
-  margin-top: 2px;
+  color: var(--ink-500);
+  margin-left: auto;
 }
 
 /* filters */
