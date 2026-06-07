@@ -12,7 +12,6 @@
             {{ selectedLeagueName || 'Mi Equipo' }}
           </h1>
         </div>
-        <span class="tag tag-lime tnum">CIERRA EN {{ countdown }}</span>
       </div>
 
       <!-- League selector -->
@@ -212,12 +211,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, reactive, watch } from 'vue';
+import { ref, computed, onMounted, reactive } from 'vue';
 import PitchSVG from '@/design-system/primitives/PitchSVG.vue';
 import PlayerPhoto from '@/design-system/primitives/PlayerPhoto.vue';
 import api from '@/lib/api';
 import AppShell from '@/design-system/AppShell.vue';
-import { teamColor, formatCountdown as sharedFormatCountdown } from '@/lib/market';
+import { teamColor } from '@/lib/market';
 import { activeLeagueId } from "@/lib/activeLeague";
 
 // Types
@@ -305,8 +304,6 @@ const formation = ref('4-3-3');
 const hasEdits = ref(false);
 const saving = ref(false);
 const saveError = ref('');
-const countdown = ref('--:--:--');
-let countdownTimer: ReturnType<typeof setInterval> | null = null;
 
 const subModal = reactive<{
   open: boolean;
@@ -370,28 +367,6 @@ function benchPlayers(pos: PlayerPosition): LineupPlayer[] {
       player: p.player,
     }));
 }
-
-// Countdown — uses shared formatCountdown from @/lib/market (imported as sharedFormatCountdown)
-function formatCountdown(ms: number): string {
-  return sharedFormatCountdown(ms) ?? '00:00:00';
-}
-
-function startCountdown() {
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  if (!currentMatchday.value) { countdown.value = '--:--:--'; return; }
-  const deadline = new Date(currentMatchday.value.start_date).getTime();
-  const tick = () => {
-    const remaining = deadline - Date.now();
-    countdown.value = formatCountdown(remaining);
-    if (remaining <= 0 && countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
-  };
-  tick();
-  countdownTimer = setInterval(tick, 1000);
-}
-
-watch(currentMatchday, () => startCountdown());
-
-onUnmounted(() => { if (countdownTimer) clearInterval(countdownTimer); });
 
 // Actions
 
