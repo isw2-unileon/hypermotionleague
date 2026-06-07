@@ -1,15 +1,17 @@
 // Command ingest is the one-shot pipeline that turns real match data into
-// standings points for a single matchday:
+// standings points for one GLOBAL app matchday:
 //
 //	fetch per-player stats (API-Football)  →  ComputePoints (scoring engine)
-//	  →  upsert player_points  →  propagate to lineup_players.points and
-//	  lineups.total_points  →  read by GetStandings.
+//	  →  upsert player_points (global, keyed (player, matchday))
+//	  →  propagate to EVERY league's lineup_players.points / lineups.total_points
+//	  →  read by GetStandings.
 //
-// Defaults target La Liga Hypermotion (Spanish Segunda División, API-Football
-// league 141) for the 2025-26 season (season=2025), and the seed fantasy league
-// (leagues.id = 1). Note the two distinct "league" ids: --league is the
-// API-Football competition used by the fetcher, while --fantasy-league is our
-// internal leagues.id, which scopes the matchday row and the standings written.
+// Matchdays are GLOBAL: a load creates/uses "app matchday N" (--app-matchday),
+// where N is the app's OWN sequential counter (1, 2, 3...), independent of the
+// real Segunda round (--round, used only to fetch from API-Football). With
+// --app-matchday=0 the next number (MAX+1) is used. The computed points are
+// universal and propagate to ALL leagues; each manager scores according to the
+// lineup they set for that matchday — no lineup means no points that matchday.
 //
 // It is dry-run by default: with no flags it fetches + computes and logs what
 // WOULD be written, making zero DB writes. Pass --dry-run=false to persist.
@@ -24,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/apifootball"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/config"
@@ -36,10 +39,11 @@ import (
 var logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 func main() {
-	round := flag.Int("round", 0, "matchday number to ingest (required, e.g. 30)")
+	round := flag.Int("round", 0, "real Segunda round to fetch from API-Football (required, e.g. 30)")
 	season := flag.Int("season", 2025, "season start year (2025 = the 2025-26 season)")
 	league := flag.Int("league", 141, "API-Football league ID for the fetcher (141 = Segunda División)")
-	fantasyLeague := flag.Int64("fantasy-league", 1, "internal fantasy league ID (leagues.id) whose matchday/standings to write")
+	appMatchday := flag.Int("app-matchday", 0,
+		"app sequential matchday number to load into (0 = next, i.e. MAX(number)+1)")
 	dryRun := flag.Bool("dry-run", true,
 		"fetch + compute and log what WOULD be written, making zero DB writes; pass --dry-run=false to persist")
 	flag.Parse()
@@ -49,13 +53,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(*dryRun, *round, *season, *league, *fantasyLeague); err != nil {
+	if err := run(*dryRun, *round, *season, *league, *appMatchday); err != nil {
 		logger.Error("ingest failed", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(dryRun bool, round, season, league int, fantasyLeague int64) error {
+func run(dryRun bool, round, season, league, appMatchday int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -79,18 +83,19 @@ func run(dryRun bool, round, season, league int, fantasyLeague int64) error {
 
 	logger.Info("starting ingest",
 		"dry_run", dryRun, "round", round, "season", season,
-		"api_league", league, "fantasy_league", fantasyLeague,
+		"api_league", league, "app_matchday", appMatchday,
 	)
 
-	// Resolve (fantasy league, round number) -> matchday_id. player_points and
-	// lineups key off this internal matchday row, not the bare round number, and
-	// matchdays are league-scoped — so the same resolution the standings handler
-	// uses (GetByLeague + match on Number) applies here.
-	matchdayID, err := resolveMatchdayID(ctx, matchdayRepo, fantasyLeague, round)
+	// Resolve or create the GLOBAL app matchday. `number` is the app's own
+	// sequential counter, NOT the real Segunda round. player_points and lineups
+	// (across all leagues) key off this single global matchday id.
+	md, created, err := resolveOrCreateMatchday(ctx, matchdayRepo, appMatchday, dryRun)
 	if err != nil {
 		return err
 	}
-	logger.Info("resolved matchday", "fantasy_league", fantasyLeague, "round", round, "matchday_id", matchdayID)
+	matchdayID := md.ID
+	logger.Info("using app matchday",
+		"number", md.Number, "matchday_id", matchdayID, "created", created)
 
 	// Fetch per-player stats for the whole round (~12 API calls for Segunda).
 	stats, err := client.FetchFixturePlayerStats(ctx, league, season, round)
@@ -146,12 +151,13 @@ func run(dryRun bool, round, season, league int, fantasyLeague int64) error {
 		upserted++
 	}
 
-	// Propagate the computed points into the matchday's lineups so the standings
-	// reflect them: lineup_players.points (per-matchday) + lineups.total_points
-	// (overall). Skipped on a dry run (it is a write).
+	// Propagate the computed points into EVERY league's lineups for this global
+	// matchday: lineup_players.points + lineups.total_points (read by
+	// GetStandings). PropagateMatchdayPoints already works league-agnostically —
+	// it keys on the global matchday id. Skipped on a dry run (it is a write).
 	lineupsPropagated := 0
 	if dryRun {
-		logger.Info("would propagate points to lineups", "matchday_id", matchdayID)
+		logger.Info("would propagate points to lineups (all leagues)", "matchday_id", matchdayID)
 	} else {
 		lineupsPropagated, err = matchdayRepo.PropagateMatchdayPoints(ctx, matchdayID)
 		if err != nil {
@@ -161,6 +167,7 @@ func run(dryRun bool, round, season, league int, fantasyLeague int64) error {
 
 	logger.Info("ingest complete",
 		"dry_run", dryRun,
+		"app_matchday", md.Number,
 		"stats_fetched", len(stats),
 		"players_matched", matched,
 		"players_unmatched", unmatched,
@@ -176,20 +183,57 @@ func run(dryRun bool, round, season, league int, fantasyLeague int64) error {
 	return nil
 }
 
-// resolveMatchdayID maps a (fantasy league, round number) to the internal
-// matchdays.id, mirroring how the standings handler resolves a matchday by
-// number within a league.
-func resolveMatchdayID(ctx context.Context, repo *postgres.MatchdayRepo, leagueID int64, round int) (int64, error) {
-	matchdays, err := repo.GetByLeague(ctx, leagueID)
-	if err != nil {
-		return 0, fmt.Errorf("get matchdays for fantasy league %d: %w", leagueID, err)
-	}
-	for _, md := range matchdays {
-		if md.Number == round {
-			return md.ID, nil
+// resolveOrCreateMatchday finds the GLOBAL app matchday with the given
+// sequential number, creating it if it does not exist. With appMatchday <= 0 the
+// next number (MAX+1) is used. The returned bool reports whether it was created.
+//
+// A freshly loaded round is finished, so a created matchday gets a recent past
+// window (not is_current) — this keeps the market window (which reads matchday
+// dates) from treating it as "in play". Adjust the dates via the matchday
+// endpoint if you need different ones. In dry-run nothing is written: a
+// to-be-created matchday is returned with ID 0 (never used for writes).
+func resolveOrCreateMatchday(ctx context.Context, repo *postgres.MatchdayRepo, appMatchday int, dryRun bool) (*models.Matchday, bool, error) {
+	number := appMatchday
+	if number <= 0 {
+		all, err := repo.GetAll(ctx)
+		if err != nil {
+			return nil, false, fmt.Errorf("list matchdays: %w", err)
 		}
+		maxNum := 0
+		for _, m := range all {
+			if m.Number > maxNum {
+				maxNum = m.Number
+			}
+		}
+		number = maxNum + 1
 	}
-	return 0, fmt.Errorf("no matchday number %d in fantasy league %d (run migrations/seed first?)", round, leagueID)
+
+	existing, err := repo.GetByNumber(ctx, number)
+	if err != nil {
+		return nil, false, err
+	}
+	if existing != nil {
+		return existing, false, nil
+	}
+
+	now := time.Now()
+	md := &models.Matchday{
+		Number:    number,
+		Name:      fmt.Sprintf("Jornada %d", number),
+		StartDate: now.Add(-2 * time.Hour), // finished round: recent past window
+		EndDate:   now.Add(-1 * time.Hour),
+		IsCurrent: false,
+	}
+
+	if dryRun {
+		logger.Info("would create app matchday", "number", number, "name", md.Name)
+		return md, true, nil // ID stays 0; never persisted in dry-run
+	}
+
+	if err := repo.Create(ctx, md); err != nil {
+		return nil, false, fmt.Errorf("create app matchday %d: %w", number, err)
+	}
+	return md, true, nil
 }
 
 // toMatchStats maps a fetched DTO to the scoring engine's input. OwnGoals has no

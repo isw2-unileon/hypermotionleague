@@ -90,11 +90,13 @@ type ClubRepository interface {
 
 // MatchdayRepository handles matchday and lineup persistence.
 type MatchdayRepository interface {
-	// Matchday operations
+	// Matchday operations. Matchdays are GLOBAL (app-wide), not per-league:
+	// `number` is the app's own sequential counter and is unique across the app.
 	Create(ctx context.Context, matchday *models.Matchday) error
 	GetByID(ctx context.Context, id int64) (*models.Matchday, error)
-	GetByLeague(ctx context.Context, leagueID int64) ([]models.Matchday, error)
-	GetCurrent(ctx context.Context, leagueID int64) (*models.Matchday, error)
+	GetAll(ctx context.Context) ([]models.Matchday, error)
+	GetByNumber(ctx context.Context, number int) (*models.Matchday, error)
+	GetCurrent(ctx context.Context) (*models.Matchday, error)
 	Update(ctx context.Context, matchday *models.Matchday) error
 
 	// Lineup operations

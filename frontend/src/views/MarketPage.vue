@@ -24,7 +24,10 @@
           <div class="saldo">
             <div class="mono col-label">DISPONIBLE</div>
             <div class="display tnum saldo-value">{{ millions(available) }}</div>
-            <div v-if="committed > 0" class="mono saldo-committed">{{ millions(committed) }} en pujas</div>
+            <div class="mono saldo-sub">
+              <template v-if="committed > 0">{{ millions(committed) }} comprometido · {{ millions(balance) }} total</template>
+              <template v-else>{{ millions(balance) }} total</template>
+            </div>
           </div>
           <div v-if="!isMobile && nextCloseLabel" class="card cierra-card">
             <span class="pulse"></span>
@@ -58,11 +61,9 @@
 
       <!-- market closed banner -->
       <div v-if="!loading && !marketOpen && leagueId != null" class="closed-banner card">
-        <span class="closed-icon">🔒</span>
-        <div>
-          <div class="mono closed-label">MERCADO CERRADO</div>
-          <div class="mono closed-sub">No se pueden realizar pujas en este momento.</div>
-        </div>
+        <span class="closed-dot"></span>
+        <span class="mono closed-label">MERCADO CERRADO</span>
+        <span class="mono closed-sub">Subastas activas abiertas · Nuevas ofertas a las 19:00</span>
       </div>
 
       <!-- position filters (mercado tab) -->
@@ -198,6 +199,7 @@ import { useRoute, useRouter } from "vue-router";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
 import AppShell from "@/design-system/AppShell.vue";
+import { activeLeagueId } from "@/lib/activeLeague";
 import PlayerPhoto from "@/design-system/primitives/PlayerPhoto.vue";
 import TeamCrest from "@/design-system/primitives/TeamCrest.vue";
 import PlayerCard from "@/design-system/components/PlayerCard.vue";
@@ -360,45 +362,49 @@ function resolveLeagueId(): number | null {
 }
 
 async function loadMarket(id: number): Promise<void> {
-  const [leagueData, members, listingsEnv, bidsEnv, statusEnv] = await Promise.all([
+  // Critical calls — if any fail, the page cannot render.
+  const [leagueData, members, listingsEnv, bidsEnv] = await Promise.all([
     api.get<LeagueSummary>(`/api/v1/leagues/${id}`),
     api.get<LeagueMember[]>(`/api/v1/leagues/${id}/members`),
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
-    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   league.value = leagueData;
   balance.value = members.find((m) => m.user_id === myUserId)?.budget ?? 0;
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
-  marketStatus.value = statusEnv.data ?? null;
 
-  // jornada is best-effort: leagues without a current matchday return 404.
-  try {
-    const md = await api.get<Matchday>(`/api/v1/leagues/${id}/matchdays/current`);
-    jornada.value = md.number;
-  } catch {
-    jornada.value = null;
-  }
+  // Non-critical: status and jornada failures must not block the page.
+  const [statusRes, jornadaRes] = await Promise.allSettled([
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
+    api.get<Matchday>(`/api/v1/leagues/${id}/matchdays/current`),
+  ]);
+  marketStatus.value = statusRes.status === "fulfilled" ? (statusRes.value.data ?? null) : null;
+  jornada.value = jornadaRes.status === "fulfilled" ? jornadaRes.value.number : null;
 }
 
 async function refresh(): Promise<void> {
   if (leagueId.value == null) return;
   const id = leagueId.value;
-  const [listingsEnv, bidsEnv, statusEnv] = await Promise.all([
+  const [listingsEnv, bidsEnv] = await Promise.all([
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
-    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
-  marketStatus.value = statusEnv.data ?? null;
+  const statusRes = await Promise.allSettled([
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
+  ]);
+  if (statusRes[0].status === "fulfilled") marketStatus.value = statusRes[0].value.data ?? null;
 }
 
 // ── actions ──────────────────────────────────────────────────────────────────
 
 function openBid(listing: MarketListingWithDetails): void {
-  if (!marketOpen.value) return; // market is closed — ignore bid attempts
+  // Allow bidding as long as the listing has not expired — independent of the
+  // market trading window. The window only gates new-listing creation (the daily
+  // refresh), not existing 24-hour auctions.
+  if (msUntil(listing.expires_at, now.value) <= 0) return;
   // If the user already holds an active bid on this listing, open in raise mode
   // (cancel-then-place) instead of stacking a duplicate bid.
   const existing = myBidByListing.value.get(listing.id);
@@ -447,6 +453,7 @@ async function onLeagueChange(e: Event): Promise<void> {
   const value = Number((e.target as HTMLSelectElement).value);
   if (Number.isNaN(value) || value === leagueId.value) return;
   leagueId.value = value;
+  activeLeagueId.value = value;
   await router.replace({ query: { ...route.query, league: String(value) } });
   loading.value = true;
   error.value = "";
@@ -475,6 +482,7 @@ onMounted(async () => {
     leagues.value = await api.get<LeagueSummary[]>("/api/v1/leagues");
     leagueId.value = resolveLeagueId();
     if (leagueId.value != null) {
+      activeLeagueId.value = leagueId.value;
       await loadMarket(leagueId.value);
     }
   } catch (e) {
@@ -563,10 +571,10 @@ onUnmounted(() => {
   color: var(--lime);
   margin-top: 2px;
 }
-.saldo-committed {
+.saldo-sub {
   font-size: 9px;
   letter-spacing: 0.1em;
-  color: var(--pos-fwd);
+  color: var(--ink-400);
   margin-top: 2px;
 }
 .cierra-card {
@@ -655,29 +663,30 @@ onUnmounted(() => {
 
 /* market closed banner */
 .closed-banner {
-  padding: 14px 20px;
+  padding: 10px 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
-  border-color: var(--down);
-  background: rgba(255, 98, 98, 0.06);
+  gap: 10px;
+  margin-bottom: 12px;
 }
-.closed-icon {
-  font-size: 20px;
+.closed-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--ink-500);
+  border-radius: 50%;
   flex-shrink: 0;
 }
 .closed-label {
-  font-size: 12px;
+  font-size: 10px;
   letter-spacing: 0.15em;
-  color: var(--down);
+  color: var(--ink-300);
   font-weight: 600;
 }
 .closed-sub {
   font-size: 10px;
   letter-spacing: 0.08em;
-  color: var(--ink-300);
-  margin-top: 2px;
+  color: var(--ink-500);
+  margin-left: auto;
 }
 
 /* filters */

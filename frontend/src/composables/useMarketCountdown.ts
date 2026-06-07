@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { BASE_URL } from "@/lib/api";
 
 interface MarketStatus {
@@ -40,22 +40,22 @@ export function useMarketCountdown(leagueId: () => number | null) {
   }
 
   const label = computed<string>(() => {
-    if (!status.value) return "PRÓXIMO CIERRE";
+    if (!status.value) return "PRÓXIMA APERTURA";
     if (status.value.is_open) return "PRÓXIMO CIERRE";
     return "PRÓXIMA APERTURA";
   });
 
   const subtitle = computed<string>(() => {
-    if (!status.value) return "Mercado cierra hoy";
+    if (!status.value) return "Mercado abre a las 19:00";
     switch (status.value.reason) {
       case "open":
-        return "Mercado abierto";
+        return "Mercado abierto · cierra a las 00:00";
       case "outside_window":
-        return "Fuera de horario";
+        return "Mercado abre a las 19:00";
       case "active_matchday":
         return "Jornada en curso";
       default:
-        return "Mercado cierra hoy";
+        return "Mercado abre a las 19:00";
     }
   });
 
@@ -74,12 +74,18 @@ export function useMarketCountdown(leagueId: () => number | null) {
     return n.toString().padStart(2, "0");
   }
 
+  // Re-fetch immediately whenever the active league ID changes (e.g. user
+  // navigates to a page that writes a different league to activeLeagueId).
+  const currentId = computed(leagueId);
+  watch(currentId, (newId) => {
+    if (newId != null) fetchStatus();
+  });
+
   onMounted(() => {
     fetchStatus();
     tickInterval = window.setInterval(() => {
       now.value = Date.now();
     }, 1000);
-    //60 seg change the status(open→closed)
     refetchInterval = window.setInterval(fetchStatus, 60000);
   });
 

@@ -52,8 +52,8 @@
         </div>
         <div class="info-cell">
           <div class="mono col-label">TU SALDO</div>
-          <div class="display tnum info-value">{{ millions(balance) }}</div>
-          <div class="mono info-sub">máx. {{ millions(maxBid) }}</div>
+          <div class="display tnum info-value">{{ millions(available) }}</div>
+          <div class="mono info-sub">{{ millions(balance) }} total</div>
         </div>
       </div>
 
@@ -187,6 +187,8 @@ const color = computed(() => teamColor(props.listing.player.team_name));
 const topBid = computed(() => props.listing.highest_bid ?? null);
 
 const min = computed(() => props.listing.base_price);
+// Available = total balance minus funds already committed in other active bids.
+const available = computed(() => props.balance - props.committed);
 // Mirror the backend budget rule (PlaceBidTx: committed + amount <= budget).
 const maxBid = computed(() => Math.max(min.value, props.balance - props.committed));
 const affordable = computed(() => props.balance - props.committed >= min.value);

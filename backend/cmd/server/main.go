@@ -43,7 +43,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(repos.User, cfg.JWTSecret)
 	oauthHandler := handlers.NewOAuthHandler(repos.User, cfg.JWTSecret, cfg.SupabaseURL, cfg.SupabaseKey)
-	leagueHandler := handlers.NewLeagueHandler(repos.League, repos.Team, repos.Market)
+	leagueHandler := handlers.NewLeagueHandler(repos.League, repos.Team, repos.Market, repos.Player, repos.Matchday)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
 	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
@@ -73,7 +73,7 @@ func main() {
 	api.GET("/db-test", func(c *gin.Context) {
 		if err := pool.Ping(c.Request.Context()); err != nil {
 			logger.Error("database ping failed", "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": "database unavailable"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "success", "message": "DB conectada"})
