@@ -139,7 +139,7 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 	}
 
 	if !matchday.StartDate.After(time.Now()) {
-		c.JSON(http.StatusConflict, gin.H{"error": "matchday already started"})
+		c.JSON(http.StatusConflict, gin.H{"error": "No se puede modificar la alineación durante un partido"})
 		return
 	}
 
