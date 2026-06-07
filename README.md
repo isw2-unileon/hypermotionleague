@@ -7,6 +7,7 @@
 Build a squad of real players, run the transfer market, set your lineup every matchday, and climb the league standings against your friends.
 
 ### 🔗 Live app → **[hypermotionleague.vercel.app](https://hypermotionleague.vercel.app)**
+### 📹 Marketing video → **[Available on youtube](https://www.youtube.com/watch?v=B5bVN7y3rgU)**
 
 [![Backend](https://img.shields.io/badge/backend-Go%201.25%20%2B%20Gin-00ADD8)](#tech-stack)
 [![Frontend](https://img.shields.io/badge/frontend-Vue%203%20%2B%20Vite-42b883)](#tech-stack)
