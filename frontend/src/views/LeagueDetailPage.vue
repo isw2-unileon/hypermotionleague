@@ -38,7 +38,13 @@
           </div>
           <div class="card info-cell">
             <div class="info-label mono">CIERRE MERCADO</div>
-            <div class="info-value display tnum lime">{{ formatCloseTime(league.market_close_time) }}</div>
+            <!-- The market always closes at midnight (window rule: [19:00, 00:00)
+                 Europe/Madrid, see backend/internal/market/window.go). The
+                 league.market_close_time field is legacy and does NOT drive the
+                 real window, so we show the real close instead of that stale
+                 value. TODO: drop market_close_time (DB column + model) once no
+                 client reads it. -->
+            <div class="info-value display tnum lime">00:00:00</div>
             <div class="info-sub mono">hora diaria</div>
           </div>
         </div>
@@ -248,10 +254,6 @@ function formatBudget(amount: number): string {
 
 function budgetCompact(amount: number): string {
   return `${Math.round(amount / 1_000_000)}M`;
-}
-
-function formatCloseTime(time: string): string {
-  return time.split(".")[0] ?? time;
 }
 
 async function copyCode() {

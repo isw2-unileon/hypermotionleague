@@ -338,14 +338,16 @@ func (r *MatchdayRepo) PropagateMatchdayPoints(ctx context.Context, matchdayID i
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	// 1. Set each lineup player's points from player_points for this matchday.
-	//    The LEFT JOIN + COALESCE resets players with no points row to 0.
+	//    A correlated subquery (not a FROM-join) is required because the UPDATE
+	//    target lineup_players (lp) is not in the FROM clause's scope in Postgres.
+	//    COALESCE(..., 0) keeps the reset-to-0 for players with no points row.
 	if _, err := tx.Exec(ctx, `
 		UPDATE lineup_players lp
-		SET points = COALESCE(pp.points, 0)
-		FROM lineups l
-		LEFT JOIN player_points pp
-		       ON pp.player_id = lp.player_id AND pp.matchday_id = l.matchday_id
-		WHERE lp.lineup_id = l.id AND l.matchday_id = $1
+		SET points = COALESCE((
+			SELECT pp.points FROM player_points pp
+			WHERE pp.player_id = lp.player_id AND pp.matchday_id = $1
+		), 0)
+		WHERE lp.lineup_id IN (SELECT id FROM lineups WHERE matchday_id = $1)
 	`, matchdayID); err != nil {
 		return 0, fmt.Errorf("propagate lineup_players.points: %w", err)
 	}
