@@ -5,6 +5,8 @@ import { ref } from "vue";
 const routePush = vi.fn();
 const routeReplace = vi.fn();
 const routePath = ref<string>("/leagues");
+// vi.hoisted so the spy exists when the (hoisted) "@/lib/auth" mock factory runs.
+const { mockLogout } = vi.hoisted(() => ({ mockLogout: vi.fn() }));
 vi.mock("vue-router", () => ({
   useRoute: () => ({
     get path() { return routePath.value; },
@@ -21,6 +23,12 @@ vi.mock("@/composables/useMarketCountdown", () => ({
     subtitle: ref("Mercado cierra hoy"),
     status: ref(null),
   }),
+}));
+
+// AppShell delegates logout to lib/auth.logout(); the clean-logout behaviour
+// (token clear + Supabase signOut + redirect) is unit-tested in lib/auth.spec.ts.
+vi.mock("@/lib/auth", () => ({
+  logout: mockLogout,
 }));
 
 vi.mock("./primitives/Logo.vue", () => ({
@@ -42,6 +50,7 @@ import AppShell from "./AppShell.vue";
 beforeEach(() => {
   routePush.mockReset();
   routeReplace.mockReset();
+  mockLogout.mockReset();
   routePath.value = "/leagues";
 });
 
@@ -86,9 +95,7 @@ describe("AppShell", () => {
     expect(routePush).toHaveBeenCalledWith("/market");
   });
 
-  it("al hacer click en logout limpia el token y redirige a /auth", async () => {
-    localStorage.setItem("token", "fake-jwt-token");
-
+  it("al hacer click en logout delega en logout() (cierre de sesión limpio)", async () => {
     const wrapper = mount(AppShell);
     await flushPromises();
 
@@ -97,7 +104,6 @@ describe("AppShell", () => {
 
     await logoutBtn.trigger("click");
 
-    expect(localStorage.getItem("token")).toBeNull();
-    expect(routePush).toHaveBeenCalledWith("/auth");
+    expect(mockLogout).toHaveBeenCalledOnce();
   });
 });

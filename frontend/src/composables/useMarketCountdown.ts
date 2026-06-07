@@ -1,20 +1,6 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { BASE_URL } from "@/lib/api";
-
-interface MarketStatus {
-  league_id: number;
-  is_open: boolean;
-  next_change_at: string;
-  reason: "open" | "outside_window" | "active_matchday";
-  active_listings: number;
-  your_active_bids: number;
-  max_bids_per_user: number;
-}
-
-interface ApiEnvelope<T> {
-  status: string;
-  data: T;
-}
+import type { MarketStatus, ApiEnvelope } from "@/lib/market";
 
 export function useMarketCountdown(leagueId: () => number | null) {
   const status = ref<MarketStatus | null>(null);

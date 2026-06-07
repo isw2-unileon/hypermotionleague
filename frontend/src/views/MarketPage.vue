@@ -87,6 +87,14 @@
         <button class="btn btn-secondary join-btn" @click="go('/leagues')">Ver mis ligas</button>
       </div>
 
+      <!-- MARKET CLOSED — replaces the listings/bids area with a clear call to
+           come back when the trading window opens (19:00 Europe/Madrid). -->
+      <div v-else-if="!marketOpen && activeTab === 'mercado'" class="state market-closed-state">
+        <div class="mono closed-kicker">◆ MERCADO CERRADO</div>
+        <div class="display closed-title">EL MERCADO ABRE A LAS 19:00</div>
+        <div class="mono closed-hint">Vuelve a partir de las 19:00 (hora española) para pujar.</div>
+      </div>
+
       <!-- MERCADO -->
       <template v-else-if="activeTab === 'mercado'">
         <div v-if="filteredListings.length === 0" class="state mono">
@@ -169,8 +177,8 @@
                 {{ bidTop(b) != null ? millions(bidTop(b)!) : "—" }}
               </div>
             </div>
-            <button class="btn btn-secondary row-btn" :disabled="!isRaisable(b)" @click="openRaise(b)">Subir</button>
-            <button class="btn btn-ghost row-btn cancel-btn" @click="cancelBid(b)">Cancelar</button>
+            <button class="btn btn-secondary row-btn" :disabled="!isRaisable(b) || !marketOpen" @click="openRaise(b)">Subir</button>
+            <button class="btn btn-ghost row-btn cancel-btn" :disabled="!marketOpen" @click="cancelBid(b)">Cancelar</button>
           </div>
         </div>
       </template>
@@ -295,11 +303,11 @@ const filteredListings = computed(() => {
 const mercadoCount = computed(() => listings.value.length);
 const activeBidCount = computed(() => bids.value.length);
 
-// Banner countdown: use the real closes_at from market status endpoint.
-// Falls back to the soonest-closing listing if status is unavailable.
+// Banner countdown: while the market is open, next_change_at is the upcoming
+// close time. Falls back to the soonest-closing listing if status is unavailable.
 const nextCloseMs = computed(() => {
-  if (marketStatus.value?.closes_at) {
-    const ms = msUntil(marketStatus.value.closes_at, now.value);
+  if (marketStatus.value?.is_open && marketStatus.value.next_change_at) {
+    const ms = msUntil(marketStatus.value.next_change_at, now.value);
     if (ms > 0) return ms;
   }
   let best = Number.POSITIVE_INFINITY;
@@ -377,10 +385,13 @@ async function loadMarket(id: number): Promise<void> {
   // Non-critical: status and jornada failures must not block the page.
   const [statusRes, jornadaRes] = await Promise.allSettled([
     api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
-    api.get<Matchday>(`/api/v1/leagues/${id}/matchdays/current`),
+    api.get<Matchday | null>(`/api/v1/leagues/${id}/matchdays/current`),
   ]);
   marketStatus.value = statusRes.status === "fulfilled" ? (statusRes.value.data ?? null) : null;
-  jornada.value = jornadaRes.status === "fulfilled" ? jornadaRes.value.number : null;
+  // When there is no current matchday the endpoint resolves 200 with a null
+  // body (not a rejection), so guard .number to avoid "Cannot read properties
+  // of null (reading 'number')".
+  jornada.value = jornadaRes.status === "fulfilled" ? (jornadaRes.value?.number ?? null) : null;
 }
 
 async function refresh(): Promise<void> {
@@ -736,6 +747,27 @@ onUnmounted(() => {
 }
 .join-btn {
   align-self: center;
+}
+
+/* market-closed empty-state */
+.market-closed-state {
+  gap: 8px;
+}
+.closed-kicker {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--lime);
+}
+.closed-title {
+  font-size: 44px;
+  line-height: 0.95;
+  color: var(--ink-100);
+  letter-spacing: 0.01em;
+}
+.closed-hint {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-400);
 }
 
 /* mis pujas summary */
