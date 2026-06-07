@@ -132,7 +132,9 @@ func newLeagueRouter(t *testing.T, userID int64) (*gin.Engine, *mockLeagueRepoFo
 
 	leagueRepo := &mockLeagueRepoForCreate{}
 	teamRepo := &mockTeamRepoForDraft{}
-	h := NewLeagueHandler(leagueRepo, teamRepo)
+	// nil market-seeding collaborators: seedMarketIfOpen is a no-op here, so
+	// these tests exercise only league creation + the initial squad draft.
+	h := NewLeagueHandler(leagueRepo, teamRepo, nil, nil, nil)
 
 	r := gin.New()
 	r.Use(func(c *gin.Context) {
