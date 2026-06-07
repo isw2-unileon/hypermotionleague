@@ -178,6 +178,13 @@ func (h *MarketHandler) PlaceBid(c *gin.Context) {
 		return
 	}
 
+	// Log activity event
+	playerName := ""
+	if listing != nil {
+		playerName = listing.Player.FirstName + " " + listing.Player.LastName
+	}
+	_ = h.marketRepo.InsertEvent(ctx, leagueID, userID, "bid", playerName, bid.Amount, "")
+
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Bid successfully placed", "data": bid})
 }
 
@@ -238,6 +245,9 @@ func (h *MarketHandler) CancelBid(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Could not cancel bid (it may not exist or is already processed)"})
 		return
 	}
+
+	// Log activity event
+	_ = h.marketRepo.InsertEvent(c.Request.Context(), leagueID, userID, "bid_cancel", "", 0, "")
 
 	c.JSON(http.StatusOK, gin.H{"status": "success", "message": "Bid successfully cancelled"})
 }

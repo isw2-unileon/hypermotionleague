@@ -15,6 +15,7 @@ import (
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/market"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/models"
 	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository"
+	"github.com/isw2-unileon/proyect-scaffolding/backend/internal/repository/postgres"
 )
 
 var leagueLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -38,6 +39,8 @@ type LeagueHandler struct {
 	players     market.FreeAgentSource
 	matchdays   matchdayLister
 	loc         *time.Location
+
+	marketRepo *postgres.MarketRepo // for activity event logging (join/leave)
 }
 
 // NewLeagueHandler creates a new instance of the handler. The market-seeding
@@ -55,7 +58,7 @@ func NewLeagueHandler(
 	if err != nil {
 		loc = time.UTC
 	}
-	return &LeagueHandler{
+	h := &LeagueHandler{
 		repo:        repo,
 		teams:       teams,
 		marketStore: marketStore,
@@ -63,6 +66,10 @@ func NewLeagueHandler(
 		matchdays:   matchdays,
 		loc:         loc,
 	}
+	if r, ok := marketStore.(*postgres.MarketRepo); ok {
+		h.marketRepo = r
+	}
+	return h
 }
 
 // seedMarketIfOpen stocks a freshly created league's market if the trading
@@ -274,6 +281,11 @@ func (h *LeagueHandler) JoinLeague(c *gin.Context) {
 	// Draft the new member's initial squad (best-effort).
 	_ = h.teams.DraftInitialSquad(c.Request.Context(), league.ID, userID)
 
+	// Log activity event
+	if h.marketRepo != nil {
+		_ = h.marketRepo.InsertEvent(c.Request.Context(), league.ID, userID, "join", "", 0, "")
+	}
+
 	c.JSON(http.StatusOK, league)
 }
 
@@ -327,8 +339,59 @@ func (h *LeagueHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	// Log activity event before deleting (the league still exists at this point)
+	if h.marketRepo != nil {
+		_ = h.marketRepo.InsertEvent(c.Request.Context(), id, userID, "leave", "", 0, "")
+	}
+
 	if err := h.repo.Delete(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo eliminar la liga"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+// KickMember removes a member from a league (owner only, cannot kick yourself).
+func (h *LeagueHandler) KickMember(c *gin.Context) {
+	callerID := c.GetInt64("userID")
+	if callerID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	targetID, err := strconv.ParseInt(c.Param("userID"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuario inválido"})
+		return
+	}
+
+	league, err := h.repo.GetByID(c.Request.Context(), leagueID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error interno"})
+		return
+	}
+	if league == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Liga no encontrada"})
+		return
+	}
+	if league.CreatedBy != callerID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Solo el propietario puede expulsar miembros"})
+		return
+	}
+	if targetID == callerID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No puedes expulsarte a ti mismo"})
+		return
+	}
+
+	if err := h.repo.RemoveMember(c.Request.Context(), leagueID, targetID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "No se pudo expulsar al miembro"})
 		return
 	}
 

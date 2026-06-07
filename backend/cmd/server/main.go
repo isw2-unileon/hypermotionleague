@@ -100,6 +100,7 @@ func main() {
 		protected.GET("/leagues/:id", leagueHandler.GetByID)
 		protected.GET("/leagues/:id/members", leagueHandler.GetMembers)
 		protected.DELETE("/leagues/:id", leagueHandler.Delete)
+		protected.DELETE("/leagues/:id/members/:userID", leagueHandler.KickMember)
 
 		protected.GET("/leagues/:id/matchdays", matchdayHandler.GetByLeague)
 		protected.GET("/leagues/:id/matchdays/current", matchdayHandler.GetCurrent)

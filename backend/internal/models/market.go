@@ -56,13 +56,17 @@ type PlaceBidRequest struct {
 	Amount    int   `json:"amount"     binding:"required,min=1"`
 }
 
-// ActivityEvent represents a single recent market event in a league feed.
+// ActivityEvent represents a single event in a league activity feed.
 type ActivityEvent struct {
-	EventType  string    `json:"event_type"` // "transfer" | "listing"
-	OccurredAt time.Time `json:"occurred_at"`
+	ID         int64     `json:"id"`
+	LeagueID   int64     `json:"league_id"`
+	UserID     int64     `json:"user_id"`
+	EventType  string    `json:"event_type"` // join, leave, bid, bid_cancel, bid_raise, transfer, top_scorer
 	Actor      string    `json:"actor"`
-	PlayerName string    `json:"player_name"`
-	Amount     int       `json:"amount"`
+	PlayerName string    `json:"player_name,omitempty"`
+	Amount     int       `json:"amount,omitempty"`
+	Details    string    `json:"details,omitempty"`
+	OccurredAt time.Time `json:"occurred_at"`
 }
 
 // ClauseResult is the outcome of a successful release-clause purchase, returned
