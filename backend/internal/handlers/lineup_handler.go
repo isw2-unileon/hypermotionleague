@@ -181,10 +181,11 @@ func (h *LineupHandler) SaveLineup(c *gin.Context) {
 		return
 	}
 	if lineup == nil {
+		mdID := matchday.ID
 		newLineup := &models.Lineup{
 			LeagueID:   leagueID,
 			UserID:     userID,
-			MatchdayID: matchday.ID,
+			MatchdayID: &mdID,
 		}
 		if err := h.matchdayRepo.CreateLineup(c.Request.Context(), newLineup); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear la alineación"})
@@ -275,4 +276,147 @@ func (h *LineupHandler) RemoveLineupPlayer(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// GetDefaultLineup returns the user's default lineup (no matchday).
+// GET /api/v1/leagues/:id/lineup/default
+func (h *LineupHandler) GetDefaultLineup(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	member, err := h.leagueRepo.GetMember(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar membresía"})
+		return
+	}
+	if member == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No eres miembro de esta liga"})
+		return
+	}
+
+	lineup, err := h.matchdayRepo.GetDefaultLineup(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la alineación"})
+		return
+	}
+	if lineup == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No hay alineación por defecto"})
+		return
+	}
+
+	c.JSON(http.StatusOK, lineup)
+}
+
+// SaveDefaultLineup creates or updates the user's default lineup (no matchday).
+// PUT /api/v1/leagues/:id/lineup/default
+func (h *LineupHandler) SaveDefaultLineup(c *gin.Context) {
+	userID := c.GetInt64("userID")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuario no identificado"})
+		return
+	}
+
+	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID de liga inválido"})
+		return
+	}
+
+	var req models.CreateLineupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Datos de alineación inválidos"})
+		return
+	}
+
+	member, err := h.leagueRepo.GetMember(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar membresía"})
+		return
+	}
+	if member == nil {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No eres miembro de esta liga"})
+		return
+	}
+
+	// Validate formation: exactly 11 starters
+	byPos := map[models.PlayerPosition]int{}
+	starters := 0
+	for _, p := range req.Players {
+		if p.IsStarter {
+			starters++
+			byPos[p.Position]++
+		}
+	}
+	if starters != 11 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "La alineación debe tener exactamente 11 titulares"})
+		return
+	}
+	gk, def, mid, fwd := byPos[models.PositionGK], byPos[models.PositionDEF], byPos[models.PositionMID], byPos[models.PositionFWD]
+	if gk != 1 || def < 3 || def > 5 || mid < 3 || mid > 5 || fwd < 1 || fwd > 3 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Formación inválida: se requiere 1 GK, 3-5 DEF, 3-5 MID, 1-3 FWD"})
+		return
+	}
+
+	// Validate ownership
+	for _, p := range req.Players {
+		owned, err := h.teamRepo.HasPlayer(c.Request.Context(), leagueID, userID, p.PlayerID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al verificar jugadores"})
+			return
+		}
+		if !owned {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Jugador no pertenece a tu equipo"})
+			return
+		}
+	}
+
+	// Get or create default lineup (matchday_id = NULL)
+	lineup, err := h.matchdayRepo.GetDefaultLineup(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al obtener la alineación"})
+		return
+	}
+	if lineup == nil {
+		newLineup := &models.Lineup{
+			LeagueID:   leagueID,
+			UserID:     userID,
+			MatchdayID: nil, // default lineup has no matchday
+		}
+		if err := h.matchdayRepo.CreateLineup(c.Request.Context(), newLineup); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al crear la alineación"})
+			return
+		}
+		lineup = &models.LineupWithPlayers{Lineup: *newLineup}
+	}
+
+	players := make([]models.LineupPlayer, len(req.Players))
+	for i, p := range req.Players {
+		players[i] = models.LineupPlayer{
+			LineupID:  lineup.ID,
+			PlayerID:  p.PlayerID,
+			Position:  p.Position,
+			IsStarter: p.IsStarter,
+		}
+	}
+	if err := h.matchdayRepo.ReplaceLineupPlayers(c.Request.Context(), lineup.ID, players); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al guardar la alineación"})
+		return
+	}
+
+	saved, err := h.matchdayRepo.GetDefaultLineup(c.Request.Context(), leagueID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error al recuperar la alineación guardada"})
+		return
+	}
+
+	c.JSON(http.StatusOK, saved)
 }

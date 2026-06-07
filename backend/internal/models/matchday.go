@@ -15,11 +15,12 @@ type Matchday struct {
 }
 
 // Lineup represents a user's selected players for a matchday.
+// MatchdayID is nil for the user's default/pre-season lineup.
 type Lineup struct {
 	ID          int64     `json:"id"`
 	LeagueID    int64     `json:"league_id"`
 	UserID      int64     `json:"user_id"`
-	MatchdayID  int64     `json:"matchday_id"`
+	MatchdayID  *int64    `json:"matchday_id"`
 	TotalPoints int       `json:"total_points"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -49,7 +50,7 @@ type LineupPlayerWithDetails struct {
 
 // CreateLineupRequest is the payload for creating/updating a lineup.
 type CreateLineupRequest struct {
-	MatchdayID int64               `json:"matchday_id" binding:"required"`
+	MatchdayID *int64              `json:"matchday_id"`
 	Players    []LineupPlayerInput `json:"players"     binding:"required,min=1"`
 }
 

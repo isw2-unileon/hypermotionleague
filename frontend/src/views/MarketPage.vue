@@ -1,8 +1,6 @@
 <template>
   <AppShell>
     <div class="market">
-      <StatusBar v-if="isMobile" />
-
       <!-- header -->
       <header class="page-head" :class="{ mobile: isMobile }">
         <div class="head-left">
@@ -24,8 +22,9 @@
 
         <div class="head-right">
           <div class="saldo">
-            <div class="mono col-label">SALDO</div>
-            <div class="display tnum saldo-value">{{ millions(balance) }}</div>
+            <div class="mono col-label">DISPONIBLE</div>
+            <div class="display tnum saldo-value">{{ millions(available) }}</div>
+            <div v-if="committed > 0" class="mono saldo-committed">{{ millions(committed) }} en pujas</div>
           </div>
           <div v-if="!isMobile && nextCloseLabel" class="card cierra-card">
             <span class="pulse"></span>
@@ -199,7 +198,6 @@ import { useRoute, useRouter } from "vue-router";
 import api from "@/lib/api";
 import { currentUserId } from "@/lib/auth";
 import AppShell from "@/design-system/AppShell.vue";
-import StatusBar from "@/design-system/primitives/StatusBar.vue";
 import PlayerPhoto from "@/design-system/primitives/PlayerPhoto.vue";
 import TeamCrest from "@/design-system/primitives/TeamCrest.vue";
 import PlayerCard from "@/design-system/components/PlayerCard.vue";
@@ -281,6 +279,7 @@ const myBidByListing = computed(() => {
 });
 
 const committed = computed(() => bids.value.reduce((sum, b) => sum + b.amount, 0));
+const available = computed(() => balance.value - committed.value);
 
 const filteredListings = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -562,6 +561,12 @@ onUnmounted(() => {
 .saldo-value {
   font-size: 20px;
   color: var(--lime);
+  margin-top: 2px;
+}
+.saldo-committed {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--pos-fwd);
   margin-top: 2px;
 }
 .cierra-card {

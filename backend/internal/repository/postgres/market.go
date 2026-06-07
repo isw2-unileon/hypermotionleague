@@ -33,6 +33,57 @@ func (r *MarketRepo) CreateListing(ctx context.Context, listing *models.MarketLi
 	).Scan(&listing.ID, &listing.ListedAt)
 }
 
+// CountActiveListings returns how many listings are currently 'active' in a
+// league. It counts by the status dimension of uq_market_listing (it does not
+// filter on expiry), so it matches the "top up to N active" target the
+// market-refresh command works toward.
+func (r *MarketRepo) CountActiveListings(ctx context.Context, leagueID int64) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM market_listings WHERE league_id = $1 AND status = 'active'`,
+		leagueID,
+	).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("count active listings: %w", err)
+	}
+	return n, nil
+}
+
+// InsertListingsTx inserts the given listings in a single transaction and
+// returns how many rows were actually written. Any listing that would violate
+// uq_market_listing (league_id, player_id, status) is skipped via ON CONFLICT
+// DO NOTHING, so re-running is safe. The market-refresh command calls this once
+// per league, so a failure rolls back only that league's batch.
+func (r *MarketRepo) InsertListingsTx(ctx context.Context, listings []models.MarketListing) (int, error) {
+	if len(listings) == 0 {
+		return 0, nil
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	inserted := 0
+	for _, l := range listings {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO market_listings (league_id, player_id, base_price, seller_id, status, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6)
+			ON CONFLICT (league_id, player_id, status) DO NOTHING
+		`, l.LeagueID, l.PlayerID, l.BasePrice, l.SellerID, l.Status, l.ExpiresAt)
+		if err != nil {
+			return 0, fmt.Errorf("insert listing (league=%d player=%d): %w", l.LeagueID, l.PlayerID, err)
+		}
+		inserted += int(tag.RowsAffected())
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit listings: %w", err)
+	}
+	return inserted, nil
+}
+
 // GetListingByID retrieves a listing with details.
 func (r *MarketRepo) GetListingByID(ctx context.Context, id int64) (*models.MarketListingWithDetails, error) {
 	query := `

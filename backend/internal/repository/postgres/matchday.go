@@ -183,6 +183,58 @@ func (r *MatchdayRepo) GetLineup(ctx context.Context, leagueID, userID, matchday
 	return lineup, rows.Err()
 }
 
+// GetDefaultLineup retrieves a user's default lineup (matchday_id IS NULL) with player details.
+func (r *MatchdayRepo) GetDefaultLineup(ctx context.Context, leagueID, userID int64) (*models.LineupWithPlayers, error) {
+	lineupQuery := `
+		SELECT id, league_id, user_id, matchday_id, total_points, created_at, updated_at
+		FROM lineups
+		WHERE league_id = $1 AND user_id = $2 AND matchday_id IS NULL`
+
+	lineup := &models.LineupWithPlayers{}
+	err := r.pool.QueryRow(ctx, lineupQuery, leagueID, userID).Scan(
+		&lineup.ID, &lineup.LeagueID, &lineup.UserID, &lineup.MatchdayID,
+		&lineup.TotalPoints, &lineup.CreatedAt, &lineup.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get default lineup: %w", err)
+	}
+
+	playerQuery := `
+		SELECT lp.id, lp.lineup_id, lp.player_id, lp.position, lp.is_starter, lp.points,
+		       p.id, p.first_name, p.last_name, p.position, p.team_name, p.market_value,
+		       p.is_active, p.created_at, p.updated_at
+		FROM lineup_players lp
+		INNER JOIN players p ON lp.player_id = p.id
+		WHERE lp.lineup_id = $1
+		ORDER BY lp.is_starter DESC, lp.position`
+
+	rows, err := r.pool.Query(ctx, playerQuery, lineup.ID)
+	if err != nil {
+		return nil, fmt.Errorf("get default lineup players: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var lpd models.LineupPlayerWithDetails
+		err := rows.Scan(
+			&lpd.ID, &lpd.LineupID, &lpd.PlayerID, &lpd.Position,
+			&lpd.IsStarter, &lpd.Points,
+			&lpd.Player.ID, &lpd.Player.FirstName, &lpd.Player.LastName,
+			&lpd.Player.Position, &lpd.Player.TeamName, &lpd.Player.MarketValue,
+			&lpd.Player.IsActive, &lpd.Player.CreatedAt, &lpd.Player.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scan default lineup player: %w", err)
+		}
+		lineup.Players = append(lineup.Players, lpd)
+	}
+
+	return lineup, rows.Err()
+}
+
 // ReplaceLineupPlayers atomically replaces all players in a lineup inside a transaction:
 // deletes existing rows then bulk-inserts the new set.
 func (r *MatchdayRepo) ReplaceLineupPlayers(ctx context.Context, lineupID int64, players []models.LineupPlayer) error {

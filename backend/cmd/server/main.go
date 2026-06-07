@@ -46,7 +46,7 @@ func main() {
 	leagueHandler := handlers.NewLeagueHandler(repos.League, repos.Team)
 	matchdayHandler := handlers.NewMatchdayHandler(repos.Matchday)
 	playerHandler := handlers.NewPlayerHandler(repos.Player, repos.Matchday)
-	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League, repos.Team)
+	teamHandler := handlers.NewTeamHandler(repos.Team, repos.League)
 	lineupHandler := handlers.NewLineupHandler(repos.Matchday, repos.Team, repos.League)
 	marketHandler := handlers.NewMarketHandler(repos.Market, repos.Player, repos.Team, repos.League, repos.Matchday)
 	gin.SetMode(cfg.GinMode)
@@ -107,11 +107,12 @@ func main() {
 		protected.GET("/leagues/:id/matchdays/:number/standings", matchdayHandler.GetMatchdayStandings)
 
 		protected.GET("/leagues/:id/users/:userId/team", teamHandler.GetUserTeamInLeague)
-		protected.POST("/leagues/:id/users/:userId/team/:playerId/buy", teamHandler.BuyPlayer)
 		// Team
 		protected.GET("/leagues/:id/team", teamHandler.GetUserTeam)
 
 		// Lineup
+		protected.GET("/leagues/:id/lineup/default", lineupHandler.GetDefaultLineup)
+		protected.PUT("/leagues/:id/lineup/default", lineupHandler.SaveDefaultLineup)
 		protected.GET("/leagues/:id/matchdays/:number/lineup", lineupHandler.GetLineup)
 		protected.PUT("/leagues/:id/matchdays/:number/lineup", lineupHandler.SaveLineup)
 		protected.DELETE("/leagues/:id/matchdays/:number/lineup/players/:player_id", lineupHandler.RemoveLineupPlayer)
@@ -123,6 +124,7 @@ func main() {
 		protected.DELETE("/leagues/:id/market/bids/:bid_id", marketHandler.CancelBid)
 		protected.GET("/leagues/:id/market/status", marketHandler.GetMarketStatus)
 		protected.GET("/leagues/:id/market/feed", marketHandler.GetRecentActivity)
+		protected.POST("/leagues/:id/market/clause/:player_id", marketHandler.PayClause)
 	}
 
 	srv := &http.Server{

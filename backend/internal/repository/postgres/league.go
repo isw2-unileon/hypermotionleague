@@ -241,3 +241,24 @@ func (r *LeagueRepo) CountMembers(ctx context.Context, leagueID int64) (int, err
 	err := r.pool.QueryRow(ctx, query, leagueID).Scan(&count)
 	return count, err
 }
+
+// ListIDs returns the IDs of every league, ordered. Used by batch jobs that
+// operate across all leagues (e.g. the daily market-refresh command), so they
+// discover real league IDs by query instead of assuming them.
+func (r *LeagueRepo) ListIDs(ctx context.Context) ([]int64, error) {
+	rows, err := r.pool.Query(ctx, `SELECT id FROM leagues ORDER BY id`)
+	if err != nil {
+		return nil, fmt.Errorf("list league ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan league id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
