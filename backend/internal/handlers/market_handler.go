@@ -318,7 +318,7 @@ func (h *MarketHandler) GetMarketStatus(c *gin.Context) {
 	// Non-fatal: a matchday fetch failure falls back to time-window-only logic
 	// (no active matchday assumed). The market status must not return 500 just
 	// because the matchdays table is temporarily unreachable.
-	matchdays, _ := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	matchdays, _ := h.matchdayRepo.GetAll(ctx)
 
 	w := market.ComputeWindow(time.Now(), h.loc, matchdays)
 	status.IsOpen = w.IsOpen
@@ -360,7 +360,7 @@ func (h *MarketHandler) PayClause(c *gin.Context) {
 
 	// Market window (Sprint 3 1.A): no money moves while the market is closed.
 	// Non-fatal matchday fetch: fall back to time-window-only (no active matchday assumed).
-	matchdays, _ := h.matchdayRepo.GetByLeague(ctx, leagueID)
+	matchdays, _ := h.matchdayRepo.GetAll(ctx)
 	if w := market.ComputeWindow(time.Now(), h.loc, matchdays); !w.IsOpen {
 		c.JSON(http.StatusConflict, gin.H{
 			"error":          "market is closed",

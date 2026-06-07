@@ -20,15 +20,20 @@ func NewMatchdayRepo(pool *pgxpool.Pool) *MatchdayRepo {
 	return &MatchdayRepo{pool: pool}
 }
 
-// Create inserts a new matchday.
+// Matchdays are GLOBAL (app-wide): there is no league_id column anymore, so
+// these queries neither write nor read it. models.Matchday.LeagueID is left at
+// its zero value (kept in the struct/JSON only for backward compatibility with
+// the frontend contract).
+
+// Create inserts a new global matchday.
 func (r *MatchdayRepo) Create(ctx context.Context, matchday *models.Matchday) error {
 	query := `
-		INSERT INTO matchdays (league_id, number, name, start_date, end_date, is_current)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO matchdays (number, name, start_date, end_date, is_current)
+		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, created_at`
 
 	return r.pool.QueryRow(ctx, query,
-		matchday.LeagueID, matchday.Number, matchday.Name,
+		matchday.Number, matchday.Name,
 		matchday.StartDate, matchday.EndDate, matchday.IsCurrent,
 	).Scan(&matchday.ID, &matchday.CreatedAt)
 }
@@ -36,12 +41,12 @@ func (r *MatchdayRepo) Create(ctx context.Context, matchday *models.Matchday) er
 // GetByID retrieves a matchday by ID.
 func (r *MatchdayRepo) GetByID(ctx context.Context, id int64) (*models.Matchday, error) {
 	query := `
-		SELECT id, league_id, number, name, start_date, end_date, is_current, created_at
+		SELECT id, number, name, start_date, end_date, is_current, created_at
 		FROM matchdays WHERE id = $1`
 
 	m := &models.Matchday{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&m.ID, &m.LeagueID, &m.Number, &m.Name,
+		&m.ID, &m.Number, &m.Name,
 		&m.StartDate, &m.EndDate, &m.IsCurrent, &m.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -53,17 +58,17 @@ func (r *MatchdayRepo) GetByID(ctx context.Context, id int64) (*models.Matchday,
 	return m, nil
 }
 
-// GetByLeague retrieves all matchdays for a league.
-func (r *MatchdayRepo) GetByLeague(ctx context.Context, leagueID int64) ([]models.Matchday, error) {
+// GetAll retrieves every matchday, ordered by the app's sequential number.
+// Matchdays are global, so there is no per-league filter.
+func (r *MatchdayRepo) GetAll(ctx context.Context) ([]models.Matchday, error) {
 	query := `
-		SELECT id, league_id, number, name, start_date, end_date, is_current, created_at
+		SELECT id, number, name, start_date, end_date, is_current, created_at
 		FROM matchdays
-		WHERE league_id = $1
 		ORDER BY number`
 
-	rows, err := r.pool.Query(ctx, query, leagueID)
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("get matchdays by league: %w", err)
+		return nil, fmt.Errorf("get matchdays: %w", err)
 	}
 	defer rows.Close()
 
@@ -71,7 +76,7 @@ func (r *MatchdayRepo) GetByLeague(ctx context.Context, leagueID int64) ([]model
 	for rows.Next() {
 		var m models.Matchday
 		err := rows.Scan(
-			&m.ID, &m.LeagueID, &m.Number, &m.Name,
+			&m.ID, &m.Number, &m.Name,
 			&m.StartDate, &m.EndDate, &m.IsCurrent, &m.CreatedAt,
 		)
 		if err != nil {
@@ -82,17 +87,38 @@ func (r *MatchdayRepo) GetByLeague(ctx context.Context, leagueID int64) ([]model
 	return matchdays, rows.Err()
 }
 
-// GetCurrent retrieves the current matchday for a league.
-func (r *MatchdayRepo) GetCurrent(ctx context.Context, leagueID int64) (*models.Matchday, error) {
+// GetByNumber retrieves the global matchday with the given app sequential
+// number, or (nil, nil) if it does not exist yet.
+func (r *MatchdayRepo) GetByNumber(ctx context.Context, number int) (*models.Matchday, error) {
 	query := `
-		SELECT id, league_id, number, name, start_date, end_date, is_current, created_at
+		SELECT id, number, name, start_date, end_date, is_current, created_at
+		FROM matchdays WHERE number = $1`
+
+	m := &models.Matchday{}
+	err := r.pool.QueryRow(ctx, query, number).Scan(
+		&m.ID, &m.Number, &m.Name,
+		&m.StartDate, &m.EndDate, &m.IsCurrent, &m.CreatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get matchday by number %d: %w", number, err)
+	}
+	return m, nil
+}
+
+// GetCurrent retrieves the current matchday (global), or (nil, nil) if none.
+func (r *MatchdayRepo) GetCurrent(ctx context.Context) (*models.Matchday, error) {
+	query := `
+		SELECT id, number, name, start_date, end_date, is_current, created_at
 		FROM matchdays
-		WHERE league_id = $1 AND is_current = TRUE
+		WHERE is_current = TRUE
 		LIMIT 1`
 
 	m := &models.Matchday{}
-	err := r.pool.QueryRow(ctx, query, leagueID).Scan(
-		&m.ID, &m.LeagueID, &m.Number, &m.Name,
+	err := r.pool.QueryRow(ctx, query).Scan(
+		&m.ID, &m.Number, &m.Name,
 		&m.StartDate, &m.EndDate, &m.IsCurrent, &m.CreatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

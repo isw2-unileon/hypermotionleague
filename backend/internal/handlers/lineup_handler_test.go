@@ -29,8 +29,8 @@ func (m *mockLeagueRepo) GetByInviteCode(_ context.Context, _ string) (*models.L
 func (m *mockLeagueRepo) GetByUserID(_ context.Context, _ int64) ([]models.League, error) {
 	return nil, nil
 }
-func (m *mockLeagueRepo) Update(_ context.Context, _ *models.League) error  { return nil }
-func (m *mockLeagueRepo) Delete(_ context.Context, _ int64) error            { return nil }
+func (m *mockLeagueRepo) Update(_ context.Context, _ *models.League) error { return nil }
+func (m *mockLeagueRepo) Delete(_ context.Context, _ int64) error          { return nil }
 func (m *mockLeagueRepo) AddMember(_ context.Context, _ *models.LeagueMember) error {
 	return nil
 }
@@ -59,7 +59,7 @@ type mockTeamRepo struct {
 }
 
 func (m *mockTeamRepo) AddPlayer(_ context.Context, _ *models.TeamPlayer) error { return nil }
-func (m *mockTeamRepo) RemovePlayer(_ context.Context, _, _, _ int64) error      { return nil }
+func (m *mockTeamRepo) RemovePlayer(_ context.Context, _, _, _ int64) error     { return nil }
 func (m *mockTeamRepo) GetUserTeam(_ context.Context, _, _ int64) (*models.UserTeam, error) {
 	return nil, nil
 }
@@ -78,7 +78,7 @@ func (m *mockTeamRepo) TransferPlayer(_ context.Context, _, _, _, _ int64, _ int
 func (m *mockTeamRepo) DraftInitialSquad(_ context.Context, _, _ int64) error { return nil }
 
 type mockMatchdayRepo struct {
-	fnGetByLeague          func(ctx context.Context, leagueID int64) ([]models.Matchday, error)
+	fnGetAll               func(ctx context.Context) ([]models.Matchday, error)
 	fnGetLineup            func(ctx context.Context, leagueID, userID, matchdayID int64) (*models.LineupWithPlayers, error)
 	fnCreateLineup         func(ctx context.Context, lineup *models.Lineup) error
 	fnReplaceLineupPlayers func(ctx context.Context, lineupID int64, players []models.LineupPlayer) error
@@ -89,13 +89,28 @@ func (m *mockMatchdayRepo) Create(_ context.Context, _ *models.Matchday) error {
 func (m *mockMatchdayRepo) GetByID(_ context.Context, _ int64) (*models.Matchday, error) {
 	return nil, nil
 }
-func (m *mockMatchdayRepo) GetByLeague(ctx context.Context, leagueID int64) ([]models.Matchday, error) {
-	if m.fnGetByLeague != nil {
-		return m.fnGetByLeague(ctx, leagueID)
+func (m *mockMatchdayRepo) GetAll(ctx context.Context) ([]models.Matchday, error) {
+	if m.fnGetAll != nil {
+		return m.fnGetAll(ctx)
 	}
 	return nil, nil
 }
-func (m *mockMatchdayRepo) GetCurrent(_ context.Context, _ int64) (*models.Matchday, error) {
+func (m *mockMatchdayRepo) GetByNumber(ctx context.Context, number int) (*models.Matchday, error) {
+	// Derive from the stubbed matchday list so tests need only set fnGetAll.
+	if m.fnGetAll != nil {
+		mds, err := m.fnGetAll(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for i := range mds {
+			if mds[i].Number == number {
+				return &mds[i], nil
+			}
+		}
+	}
+	return nil, nil
+}
+func (m *mockMatchdayRepo) GetCurrent(_ context.Context) (*models.Matchday, error) {
 	return nil, nil
 }
 func (m *mockMatchdayRepo) Update(_ context.Context, _ *models.Matchday) error { return nil }
@@ -196,7 +211,7 @@ func TestSaveLineup_DeadlinePassed(t *testing.T) {
 	md.StartDate = time.Now().Add(-1 * time.Hour)
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{},
@@ -229,7 +244,7 @@ func TestSaveLineup_InvalidFormation_MultipleGK(t *testing.T) {
 	}
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{},
@@ -263,7 +278,7 @@ func TestSaveLineup_InvalidFormation_TooFewDEF(t *testing.T) {
 	}
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{},
@@ -280,7 +295,7 @@ func TestSaveLineup_ValidFormation_442(t *testing.T) {
 	md := futureMatchday()
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{},
@@ -299,7 +314,7 @@ func TestSaveLineup_StalePlayersReplaced(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnReplaceLineupPlayers: func(_ context.Context, _ int64, players []models.LineupPlayer) error {
@@ -345,7 +360,7 @@ func TestSaveLineup_WrongStarters(t *testing.T) {
 	}
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{},
@@ -362,7 +377,7 @@ func TestSaveLineup_PlayerNotOwned(t *testing.T) {
 	md := futureMatchday()
 
 	h := NewLineupHandler(
-		&mockMatchdayRepo{fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+		&mockMatchdayRepo{fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 			return []models.Matchday{md}, nil
 		}},
 		&mockTeamRepo{fnHasPlayer: func(_ context.Context, _, _, _ int64) (bool, error) {
@@ -383,7 +398,7 @@ func TestSaveLineup_CreatesNewLineup(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {
@@ -415,7 +430,7 @@ func TestGetLineup_NotFound(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {
@@ -438,7 +453,7 @@ func TestGetLineup_Success(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {
@@ -493,7 +508,7 @@ func TestRemoveLineupPlayer_Success(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnRemoveLineupPlayer: func(_ context.Context, _, _ int64) error {
@@ -534,7 +549,7 @@ func TestRemoveLineupPlayer_NoLineup(t *testing.T) {
 
 	h := NewLineupHandler(
 		&mockMatchdayRepo{
-			fnGetByLeague: func(_ context.Context, _ int64) ([]models.Matchday, error) {
+			fnGetAll: func(_ context.Context) ([]models.Matchday, error) {
 				return []models.Matchday{md}, nil
 			},
 			fnGetLineup: func(_ context.Context, _, _, _ int64) (*models.LineupWithPlayers, error) {

@@ -17,14 +17,15 @@ func NewMatchdayHandler(matchdays repository.MatchdayRepository) *MatchdayHandle
 }
 
 // GET /api/v1/leagues/:id/matchdays
+// Matchdays are global; the :id (league) stays in the route for frontend
+// compatibility but does not scope the lookup.
 func (h *MatchdayHandler) GetByLeague(c *gin.Context) {
-	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if _, err := strconv.ParseInt(c.Param("id"), 10, 64); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid league id"})
 		return
 	}
 
-	matchdays, err := h.matchdays.GetByLeague(c.Request.Context(), leagueID)
+	matchdays, err := h.matchdays.GetAll(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch matchdays"})
 		return
@@ -35,13 +36,12 @@ func (h *MatchdayHandler) GetByLeague(c *gin.Context) {
 
 // GET /api/v1/leagues/:id/matchdays/current
 func (h *MatchdayHandler) GetCurrent(c *gin.Context) {
-	leagueID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
+	if _, err := strconv.ParseInt(c.Param("id"), 10, 64); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid league id"})
 		return
 	}
 
-	matchday, err := h.matchdays.GetCurrent(c.Request.Context(), leagueID)
+	matchday, err := h.matchdays.GetCurrent(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "no current matchday found"})
 		return
@@ -75,35 +75,24 @@ func (h *MatchdayHandler) GetMatchdayStandings(c *gin.Context) {
 		return
 	}
 
-	number, err := strconv.ParseInt(c.Param("number"), 10, 64)
+	number, err := strconv.Atoi(c.Param("number"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid matchday number"})
 		return
 	}
 
-	// Find the matchday by number within this league
-	matchdays, err := h.matchdays.GetByLeague(c.Request.Context(), leagueID)
+	// Matchdays are global; resolve the matchday by its app sequential number.
+	matchday, err := h.matchdays.GetByNumber(c.Request.Context(), number)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch matchdays"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch matchday"})
 		return
 	}
-
-	var matchdayID int64
-	found := false
-	for _, md := range matchdays {
-		if int64(md.Number) == number {
-			matchdayID = md.ID
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	if matchday == nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "matchday not found"})
 		return
 	}
 
-	standings, err := h.matchdays.GetStandings(c.Request.Context(), leagueID, &matchdayID)
+	standings, err := h.matchdays.GetStandings(c.Request.Context(), leagueID, &matchday.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch matchday standings"})
 		return

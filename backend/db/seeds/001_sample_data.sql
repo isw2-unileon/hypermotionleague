@@ -83,18 +83,17 @@ INSERT INTO players (first_name, last_name, position, team_name, market_value) V
 ON CONFLICT (first_name, last_name, team_name) DO NOTHING;
 
 -- =============================================================================
--- MATCHDAYS (for La Liga Fantasy league)
+-- MATCHDAYS (GLOBAL / app-wide; `number` is the app's own sequential counter)
 -- =============================================================================
-INSERT INTO matchdays (league_id, number, name, start_date, end_date, is_current) VALUES
-    (1, 1,  'Matchday 1',  '2026-01-10 00:00:00+00', '2026-01-12 23:59:59+00', FALSE),
-    (1, 2,  'Matchday 2',  '2026-01-17 00:00:00+00', '2026-01-19 23:59:59+00', FALSE),
-    (1, 3,  'Matchday 3',  '2026-01-24 00:00:00+00', '2026-01-26 23:59:59+00', FALSE),
-    (1, 4,  'Matchday 4',  '2026-01-31 00:00:00+00', '2026-02-02 23:59:59+00', FALSE),
-
-    -- Premier League Heroes
-    (2, 1,  'Matchday 1',  '2026-01-10 00:00:00+00', '2026-01-12 23:59:59+00', FALSE),
-    (2, 2,  'Matchday 2',  '2026-01-17 00:00:00+00', '2026-01-19 23:59:59+00', FALSE)
-ON CONFLICT (league_id, number) DO NOTHING;
+-- Matchdays are not per-league anymore: a single global set of jornadas serves
+-- every league. player_points (below) reference these by id; lineups across all
+-- leagues point at the same global matchday.
+INSERT INTO matchdays (number, name, start_date, end_date, is_current) VALUES
+    (1,  'Matchday 1',  '2026-01-10 00:00:00+00', '2026-01-12 23:59:59+00', FALSE),
+    (2,  'Matchday 2',  '2026-01-17 00:00:00+00', '2026-01-19 23:59:59+00', FALSE),
+    (3,  'Matchday 3',  '2026-01-24 00:00:00+00', '2026-01-26 23:59:59+00', FALSE),
+    (4,  'Matchday 4',  '2026-01-31 00:00:00+00', '2026-02-02 23:59:59+00', FALSE)
+ON CONFLICT (number) DO NOTHING;
 
 -- =============================================================================
 -- PLAYER POINTS (example data for matchdays 1-3 in La Liga Fantasy)

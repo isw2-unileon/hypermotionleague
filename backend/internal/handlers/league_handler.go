@@ -21,10 +21,9 @@ import (
 var leagueLogger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 // matchdayLister is the slice of the matchday repo the league handler needs to
-// evaluate the market window for a league (its matchdays). Satisfied by
-// *postgres.MatchdayRepo.
+// evaluate the (global) market window. Satisfied by *postgres.MatchdayRepo.
 type matchdayLister interface {
-	GetByLeague(ctx context.Context, leagueID int64) ([]models.Matchday, error)
+	GetAll(ctx context.Context) ([]models.Matchday, error)
 }
 
 // LeagueHandler handles HTTP requests for leagues
@@ -83,7 +82,7 @@ func (h *LeagueHandler) seedMarketIfOpen(ctx context.Context, leagueID int64) {
 		return // market seeding not wired (e.g. in unit tests)
 	}
 
-	matchdays, err := h.matchdays.GetByLeague(ctx, leagueID)
+	matchdays, err := h.matchdays.GetAll(ctx)
 	if err != nil {
 		leagueLogger.Warn("market seed: could not load matchdays; skipping",
 			"league_id", leagueID, "error", err)
