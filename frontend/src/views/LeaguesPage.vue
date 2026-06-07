@@ -304,6 +304,13 @@ function mapActivityEvent(e: ActivityEvent): ActivityItem {
 const ACCENTS = ["var(--lime)", "var(--pos-fwd)", "var(--pos-def)", "var(--pos-gk)"];
 
 
+function currentWeekNumber(): number {
+  const now = new Date();
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((now.getTime() - startOfYear.getTime()) / 86_400_000);
+  return Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
+}
+
 // Format budget_per_user (euros) into the compact "100M" label the design uses.
 function formatBudget(amount: number): string {
   return `${Math.round(amount / 1_000_000)}M`;
@@ -319,8 +326,7 @@ const leagueViews = computed<LeagueView[]>(() =>
     accent: ACCENTS[index % ACCENTS.length] ?? "var(--lime)",
     currentMembers: standingsMap.value.get(l.id)?.rankings.length ?? 0,
     members: l.max_members,
-    // TODO Sprint 2: current matchday number not in /api/v1/leagues.
-    matchday: 32,
+    matchday: currentWeekNumber(),
     // TODO Sprint 2: position/total require a standings call per league.
     position: 0,
     total: l.max_members,
