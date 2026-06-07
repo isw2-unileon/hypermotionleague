@@ -1,14 +1,15 @@
 import router from "@/router";
 import { supabase } from "@/lib/supabase";
+import { getToken, clearToken } from "@/lib/tokenStore";
 
 // Best-effort, client-side decode of the signed-in user's ID from the JWT in
-// localStorage. This is NOT a security check — the backend verifies the token
+// memory. This is NOT a security check — the backend verifies the token
 // signature on every request (see middleware/auth.go). It only lets the UI know
 // "who am I" (e.g. to find my league membership / budget) without an extra
 // round-trip. Mirrors the decode already used by the router and LeagueDetailPage.
 // The backend signs `user_id` into the claims (see backend/internal/auth/jwt.go).
 export function currentUserId(): number {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (!token) return 0;
 
   const segment = token.split(".")[1];
@@ -36,7 +37,7 @@ export function currentUserId(): number {
 // drops Supabase's own session so an OAuth login doesn't leave a dangling
 // provider session behind.
 export async function logout(): Promise<void> {
-  localStorage.removeItem("token");
+  clearToken();
   try {
     await supabase.auth.signOut();
   } catch {

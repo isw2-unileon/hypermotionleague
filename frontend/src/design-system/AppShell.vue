@@ -138,9 +138,6 @@ function onTabSelect(id: NavId): void {
 }
 
 
-// Delegates to the shared logout() (lib/auth.ts): it clears the JWT from
-// localStorage, signs out of Supabase so an OAuth login leaves no dangling
-// provider session, and returns the user to the auth screen.
 function onLogout(): void {
   void logout();
 }

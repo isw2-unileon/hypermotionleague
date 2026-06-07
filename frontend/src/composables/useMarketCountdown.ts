@@ -1,6 +1,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { BASE_URL } from "@/lib/api";
 import type { MarketStatus, ApiEnvelope } from "@/lib/market";
+import { getToken } from "@/lib/tokenStore";
 
 export function useMarketCountdown(leagueId: () => number | null) {
   const status = ref<MarketStatus | null>(null);
@@ -13,7 +14,7 @@ export function useMarketCountdown(leagueId: () => number | null) {
     const id = leagueId();
     if (id == null) return;
     try {
-      const token = localStorage.getItem("token");
+      const token = getToken();
       const res = await fetch(`${BASE_URL}/api/v1/leagues/${id}/market/status`, {
         headers: { Authorization: `Bearer ${token}` },
       });

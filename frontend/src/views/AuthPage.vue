@@ -229,6 +229,7 @@ import { useRouter } from "vue-router";
 import type { Subscription } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { BASE_URL } from "@/lib/api";
+import { setToken } from "@/lib/tokenStore";
 import Logo from "@/design-system/primitives/Logo.vue";
 import PitchSVG from "@/design-system/primitives/PitchSVG.vue";
 type AuthTab = "login" | "register";
@@ -297,7 +298,7 @@ async function handleLogin(): Promise<void> {
       error.value = data.error ?? "Credenciales incorrectas";
       return;
     }
-    localStorage.setItem("token", data.token);
+    setToken(data.token);
     router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
@@ -320,7 +321,7 @@ async function handleRegister(): Promise<void> {
       error.value = data.error ?? "Error al registrarse";
       return;
     }
-    localStorage.setItem("token", data.token);
+    setToken(data.token);
     router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
@@ -348,7 +349,7 @@ async function handleOAuthCallback(accessToken: string): Promise<void> {
       error.value = result.error ?? "Error en autenticación OAuth";
       return;
     }
-    localStorage.setItem("token", result.token);
+    setToken(result.token);
     await supabase.auth.signOut();
     router.push("/leagues");
   } catch {
