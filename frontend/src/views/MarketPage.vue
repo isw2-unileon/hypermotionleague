@@ -361,39 +361,40 @@ function resolveLeagueId(): number | null {
 }
 
 async function loadMarket(id: number): Promise<void> {
-  const [leagueData, members, listingsEnv, bidsEnv, statusEnv] = await Promise.all([
+  // Critical calls — if any fail, the page cannot render.
+  const [leagueData, members, listingsEnv, bidsEnv] = await Promise.all([
     api.get<LeagueSummary>(`/api/v1/leagues/${id}`),
     api.get<LeagueMember[]>(`/api/v1/leagues/${id}/members`),
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
-    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   league.value = leagueData;
   balance.value = members.find((m) => m.user_id === myUserId)?.budget ?? 0;
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
-  marketStatus.value = statusEnv.data ?? null;
 
-  // jornada is best-effort: leagues without a current matchday return 404.
-  try {
-    const md = await api.get<Matchday>(`/api/v1/leagues/${id}/matchdays/current`);
-    jornada.value = md.number;
-  } catch {
-    jornada.value = null;
-  }
+  // Non-critical: status and jornada failures must not block the page.
+  const [statusRes, jornadaRes] = await Promise.allSettled([
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
+    api.get<Matchday>(`/api/v1/leagues/${id}/matchdays/current`),
+  ]);
+  marketStatus.value = statusRes.status === "fulfilled" ? (statusRes.value.data ?? null) : null;
+  jornada.value = jornadaRes.status === "fulfilled" ? jornadaRes.value.number : null;
 }
 
 async function refresh(): Promise<void> {
   if (leagueId.value == null) return;
   const id = leagueId.value;
-  const [listingsEnv, bidsEnv, statusEnv] = await Promise.all([
+  const [listingsEnv, bidsEnv] = await Promise.all([
     api.get<ApiEnvelope<MarketListingWithDetails[]>>(`/api/v1/leagues/${id}/market/listings`),
     api.get<ApiEnvelope<BidWithDetails[]>>(`/api/v1/leagues/${id}/market/bids`),
-    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
   ]);
   listings.value = listingsEnv.data ?? [];
   bids.value = bidsEnv.data ?? [];
-  marketStatus.value = statusEnv.data ?? null;
+  const statusRes = await Promise.allSettled([
+    api.get<ApiEnvelope<MarketStatus>>(`/api/v1/leagues/${id}/market/status`),
+  ]);
+  if (statusRes[0].status === "fulfilled") marketStatus.value = statusRes[0].value.data ?? null;
 }
 
 // ── actions ──────────────────────────────────────────────────────────────────
