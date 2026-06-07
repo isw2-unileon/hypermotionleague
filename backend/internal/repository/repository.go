@@ -137,6 +137,9 @@ type MarketRepository interface {
 	// Market status
 	GetMarketStatus(ctx context.Context, leagueID, userID int64) (*models.MarketStatus, error)
 
+	// Activity logging
+	InsertEvent(ctx context.Context, leagueID, userID int64, eventType, playerName string, amount int, details string) error
+
 	// Activity feed
 	GetRecentActivity(ctx context.Context, leagueID int64, limit int) ([]models.ActivityEvent, error)
 }
