@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 import AuthPage from "@/views/AuthPage.vue";
 import { getToken, clearToken } from "@/lib/tokenStore";
+import { isTokenValid } from "@/lib/jwt";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -58,25 +59,6 @@ const router = createRouter({
    
   ],
 });
-
-// Best-effort client-side check of the JWT `exp` claim. Not a security
-// verification — the backend still verifies the signature on every request.
-// The goal is to avoid sending obviously-expired tokens and to redirect the
-// user to /auth without waiting for a 401.
-function isTokenValid(token: string | null): boolean {
-  if (!token) return false;
-  const parts = token.split(".");
-  if (parts.length !== 3) return false;
-  const payloadStr = parts[1];
-  if (!payloadStr) return false;
-  try {
-    const payload = JSON.parse(atob(payloadStr)) as { exp?: number };
-    return typeof payload.exp === "number"
-      && payload.exp > Date.now() / 1000;
-  } catch {
-    return false;
-  }
-}
 
 router.beforeEach((to) => {
   const token = getToken();

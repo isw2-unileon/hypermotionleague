@@ -32,9 +32,10 @@ export function currentUserId(): number {
 }
 
 // Ends the session and returns the user to the auth screen. Mirrors the
-// existing 401/expiry handling — clear the localStorage "token" and
-// router.push("/auth") (the router.beforeEach guard does the rest) — and also
-// drops Supabase's own session so an OAuth login doesn't leave a dangling
+// existing 401/expiry handling — clearToken() drops the JWT from memory and
+// both persistent stores (localStorage + sessionStorage, see tokenStore.ts) —
+// then router.push("/auth") (the router.beforeEach guard does the rest), and
+// also drops Supabase's own session so an OAuth login doesn't leave a dangling
 // provider session behind.
 export async function logout(): Promise<void> {
   clearToken();
