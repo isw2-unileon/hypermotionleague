@@ -298,7 +298,9 @@ async function handleLogin(): Promise<void> {
       error.value = data.error ?? "Credenciales incorrectas";
       return;
     }
-    setToken(data.token);
+    // "Mantener sesión": true -> localStorage (sobrevive cerrar el navegador),
+    // false -> sessionStorage (sobrevive al F5, se pierde al cerrar la pestaña).
+    setToken(data.token, rememberMe.value);
     router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
@@ -321,7 +323,9 @@ async function handleRegister(): Promise<void> {
       error.value = data.error ?? "Error al registrarse";
       return;
     }
-    setToken(data.token);
+    // El formulario de registro no expone el checkbox "Mantener sesión";
+    // tras crear la cuenta persistimos por defecto (localStorage).
+    setToken(data.token, true);
     router.push("/leagues");
   } catch {
     error.value = "Error de conexión con el servidor";
@@ -349,7 +353,9 @@ async function handleOAuthCallback(accessToken: string): Promise<void> {
       error.value = result.error ?? "Error en autenticación OAuth";
       return;
     }
-    setToken(result.token);
+    // El flujo OAuth no expone el checkbox "Mantener sesión"; persistimos por
+    // defecto (localStorage) para que la sesión OAuth sobreviva al refresh.
+    setToken(result.token, true);
     await supabase.auth.signOut();
     router.push("/leagues");
   } catch {
